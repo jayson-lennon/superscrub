@@ -44,6 +44,8 @@ pub fn load() -> Result<Config, Report<ConfigError>> {
 pub async fn new(db_path: &str) -> Result<Self, Report<SqliteNoteDbError>>
 ```
 
+NEVER make `errors.rs` file. ALWAYS colocate the error types near relevant traits/methods that produce the error. Ideally in the same module or file.
+
 ### Trait Usage
 
 Every external dependency or service must have a trait abstraction.
