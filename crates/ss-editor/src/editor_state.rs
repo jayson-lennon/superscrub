@@ -1,0 +1,143 @@
+//! Core editor state: current time, loaded project, playback flag.
+//!
+//! `EditorState` holds the mutable state that changes during editing.
+//! It is a plain data struct with semantic methods — no trivial setters.
+
+use std::path::PathBuf;
+
+use ss_core::project::Project;
+
+/// The current state of the editor.
+///
+/// Owns the loaded project and tracks the current playback position.
+/// All mutations go through semantic methods.
+#[derive(Debug, Clone)]
+pub struct EditorState {
+    /// The currently loaded project.
+    project: Option<Project>,
+    /// Path to the project file on disk.
+    project_file: Option<PathBuf>,
+    /// Current playback position in seconds.
+    current_time: f64,
+    /// Whether the editor is in playback mode.
+    playing: bool,
+}
+
+impl Default for EditorState {
+    fn default() -> Self {
+        Self {
+            project: None,
+            project_file: None,
+            current_time: 0.0,
+            playing: false,
+        }
+    }
+}
+
+impl EditorState {
+    /// Create a new empty editor state.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Load a project into the editor.
+    ///
+    /// Resets playback position to 0 and stops playback.
+    pub fn load_project(&mut self, project: Project, path: PathBuf) {
+        self.project = Some(project);
+        self.project_file = Some(path);
+        self.current_time = 0.0;
+        self.playing = false;
+    }
+
+    /// Whether a project is currently loaded.
+    pub fn has_project(&self) -> bool {
+        self.project.is_some()
+    }
+
+    /// Get a reference to the loaded project.
+    ///
+    /// Returns `None` if no project is loaded.
+    pub fn project(&self) -> Option<&Project> {
+        self.project.as_ref()
+    }
+
+    /// Get the project file path.
+    pub fn project_file(&self) -> Option<&PathBuf> {
+        self.project_file.as_ref()
+    }
+
+    /// Replace the project data (used by config watcher on file change).
+    ///
+    /// Keeps the same project file path. Does not reset playback position
+    /// so the user sees changes at their current point in the timeline.
+    pub fn reload_project(&mut self, project: Project) {
+        self.project = Some(project);
+    }
+
+    /// The current playback time in seconds.
+    pub fn current_time(&self) -> f64 {
+        self.current_time
+    }
+
+    /// The project duration in seconds (0.0 if no project).
+    pub fn duration(&self) -> f64 {
+        self.project.as_ref().map(|p| p.duration).unwrap_or(0.0)
+    }
+
+    /// Advance the current time by the given delta.
+    ///
+    /// Clamps to [0, duration). Returns `true` if playback should continue
+    /// (i.e., time has not reached the end).
+    pub fn advance_time(&mut self, dt: f64) -> bool {
+        let duration = self.duration();
+        self.current_time = (self.current_time + dt).clamp(0.0, duration);
+
+        // If we've hit the end, stop.
+        self.current_time < duration
+    }
+
+    /// Seek to a specific time in seconds.
+    ///
+    /// Clamps to [0, duration).
+    pub fn seek_to(&mut self, time: f64) {
+        let duration = self.duration();
+        self.current_time = time.clamp(0.0, if duration > 0.0 { duration } else { 0.0 });
+    }
+
+    /// Whether the editor is currently playing.
+    pub fn is_playing(&self) -> bool {
+        self.playing
+    }
+
+    /// Start playback.
+    pub fn start_playback(&mut self) {
+        if self.project.is_some() {
+            self.playing = true;
+        }
+    }
+
+    /// Stop playback (pause). Position is retained.
+    pub fn stop_playback(&mut self) {
+        self.playing = false;
+    }
+
+    /// Stop playback and reset position to 0.
+    pub fn stop_and_reset(&mut self) {
+        self.playing = false;
+        self.current_time = 0.0;
+    }
+
+    /// The project's frames per second (0 if no project).
+    pub fn fps(&self) -> u32 {
+        self.project.as_ref().map(|p| p.fps).unwrap_or(0)
+    }
+
+    /// The project's resolution (0x0 if no project).
+    pub fn resolution(&self) -> [u32; 2] {
+        self.project
+            .as_ref()
+            .map(|p| p.resolution)
+            .unwrap_or([0, 0])
+    }
+}

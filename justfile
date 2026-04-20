@@ -13,6 +13,13 @@ fmt:
 run project:
     cargo run -p ss-editor -- {{project}}
 
+# Generate demo images and open the editor.
+demo: demo-gen
+    cargo run -p ss-editor -- examples/demo/project.json
+
+demo-gen:
+    cargo run --bin gen-demo-images -- examples/demo
+
 render project:
     cargo run -p ss-render -- {{project}}
 

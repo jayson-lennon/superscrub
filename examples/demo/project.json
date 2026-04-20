@@ -1,0 +1,492 @@
+{
+    "resolution": [
+        1920,
+        1080
+    ],
+    "fps": 30,
+    "duration": 12.0,
+    "output": "output.mp4",
+    "background": [
+        10,
+        30,
+        50,
+        255
+    ],
+    "clips": [
+        {
+            "id": "background",
+            "type": "image",
+            "path": "bg.png",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 12.0,
+            "z_index": 0,
+            "sizing": {
+                "FitRect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 1920,
+                    "h": 1080,
+                    "mode": "Cover"
+                }
+            },
+            "pivot": [
+                0.5,
+                0.5
+            ],
+            "animations": [
+                {
+                    "property": "scale_x",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 1.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 1.2,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "scale_y",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 1.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 1.2,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "translate_y",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": -40.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 40.0,
+                            "easing": "Linear"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "card",
+            "type": "image",
+            "path": "card.png",
+            "track": 1,
+            "start_time": 2.5,
+            "end_time": 11.5,
+            "z_index": 1,
+            "sizing": {
+                "FitRect": {
+                    "x": 560,
+                    "y": 240,
+                    "w": 800,
+                    "h": 500,
+                    "mode": "Contain"
+                }
+            },
+            "pivot": [
+                0.5,
+                0.5
+            ],
+            "animations": [
+                {
+                    "property": "scale_x",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.8,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.5,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 10.0,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 11.0,
+                            "value": 0.9,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                },
+                {
+                    "property": "scale_y",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.8,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.5,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 10.0,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 11.0,
+                            "value": 0.9,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                },
+                {
+                    "property": "opacity",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.2,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 10.5,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 11.5,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "badge",
+            "type": "image",
+            "path": "badge.png",
+            "track": 2,
+            "start_time": 1.5,
+            "end_time": 10.5,
+            "z_index": 3,
+            "sizing": {
+                "Explicit": {
+                    "width": 200,
+                    "height": 200
+                }
+            },
+            "pivot": [
+                0.5,
+                0.5
+            ],
+            "animations": [
+                {
+                    "property": "translate_x",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 600.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 450.0,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "translate_y",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 80.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 3.0,
+                            "value": 100.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 6.0,
+                            "value": 80.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 9.0,
+                            "value": 100.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 80.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                },
+                {
+                    "property": "opacity",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.0,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 9.0,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 10.5,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "stripe-top",
+            "type": "image",
+            "path": "stripe.png",
+            "track": 3,
+            "start_time": 0.3,
+            "end_time": 11.7,
+            "z_index": 2,
+            "sizing": {
+                "FitRect": {
+                    "x": 360,
+                    "y": 140,
+                    "w": 1200,
+                    "h": 60,
+                    "mode": "Contain"
+                }
+            },
+            "pivot": [
+                0.5,
+                0.5
+            ],
+            "animations": [
+                {
+                    "property": "translate_x",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": -1400.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 2.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                },
+                {
+                    "property": "opacity",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.5,
+                            "value": 0.8,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 10.0,
+                            "value": 0.8,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 11.7,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "dot-1",
+            "type": "image",
+            "path": "dot.png",
+            "track": 4,
+            "start_time": 2.0,
+            "end_time": 10.0,
+            "z_index": 4,
+            "sizing": {
+                "Explicit": {
+                    "width": 80,
+                    "height": 80
+                }
+            },
+            "pivot": [
+                0.5,
+                0.5
+            ],
+            "animations": [
+                {
+                    "property": "translate_x",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 700.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 750.0,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "translate_y",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 820.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 800.0,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "opacity",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.0,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 8.0,
+                            "value": 1.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 10.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "dot-2",
+            "type": "image",
+            "path": "dot.png",
+            "track": 4,
+            "start_time": 3.0,
+            "end_time": 9.0,
+            "z_index": 4,
+            "sizing": {
+                "Explicit": {
+                    "width": 50,
+                    "height": 50
+                }
+            },
+            "pivot": [
+                0.5,
+                0.5
+            ],
+            "animations": [
+                {
+                    "property": "translate_x",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 1100.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 1050.0,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "translate_y",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 180.0,
+                            "easing": "Linear"
+                        },
+                        {
+                            "time": 12.0,
+                            "value": 200.0,
+                            "easing": "Linear"
+                        }
+                    ]
+                },
+                {
+                    "property": "opacity",
+                    "keyframes": [
+                        {
+                            "time": 0.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 1.0,
+                            "value": 0.7,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 6.0,
+                            "value": 0.7,
+                            "easing": "SineInOut"
+                        },
+                        {
+                            "time": 9.0,
+                            "value": 0.0,
+                            "easing": "SineInOut"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -25,3 +25,7 @@ path = "src/main.rs"
 [[bin]]
 name = "gen-test-images"
 path = "src/bin/gen_test_images.rs"
+
+[[bin]]
+name = "gen-demo-images"
+path = "src/bin/gen_demo_images.rs"

@@ -7,12 +7,12 @@
 //!
 //! Use Ctrl+C to stop at any time.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use ss_audio::{AudioEngine, RodioAudioEngine, PlaybackState};
+use ss_audio::{AudioEngine, PlaybackState, RodioAudioEngine};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -22,7 +22,9 @@ fn main() {
         eprintln!();
         eprintln!("Options:");
         eprintln!("  --seek <seconds>   Seek to position before playing");
-        eprintln!("  --pause <seconds>  Pause playback after N seconds (live demo of pause/resume)");
+        eprintln!(
+            "  --pause <seconds>  Pause playback after N seconds (live demo of pause/resume)"
+        );
         std::process::exit(1);
     }
 
@@ -31,10 +33,13 @@ fn main() {
     let pause_after = parse_optional_arg(&args, "--pause");
 
     eprintln!("Creating audio engine...");
-    let engine = RodioAudioEngine::new().expect("failed to create audio engine (no output device?)");
+    let engine =
+        RodioAudioEngine::new().expect("failed to create audio engine (no output device?)");
 
     eprintln!("Loading: {audio_path}");
-    engine.load(std::path::Path::new(audio_path)).expect("failed to load audio");
+    engine
+        .load(std::path::Path::new(audio_path))
+        .expect("failed to load audio");
 
     eprintln!("Duration: {:.1}s", engine.duration());
     eprintln!("State:    {:?}", engine.state());

@@ -3,11 +3,30 @@ name = "ss-editor"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "ss_editor"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ss-editor"
 path = "src/main.rs"
 
 [dependencies]
 ss-core = { path = "../ss-core" }
+ss-compositor = { path = "../ss-compositor" }
+ss-audio = { path = "../ss-audio" }
+ss-preview = { path = "../ss-preview" }
 wherror = { workspace = true }
 error-stack = { workspace = true }
+derive_more = { workspace = true }
+image = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dirs = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+clap = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+tempfile = "3"
