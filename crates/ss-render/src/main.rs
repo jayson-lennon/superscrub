@@ -81,15 +81,16 @@ fn run() -> Result<(), Report<RenderError>> {
     let total_frames = ss_render::range_frame_count(start_time, end_time, fps);
     let progress = ProgressTracker::new(total_frames);
 
-    // Create cancel channel.
-    let (cancel_sender, cancel_receiver) = kanal::bounded(1);
-
-    // Set up ctrl+c handler.
-    ctrlc::set_handler(move || {
-        let _ = cancel_sender.send(());
-    })
-    .change_context(RenderError)
-    .attach("failed to set ctrl+c handler")?;
+    // Set up cancel channel and ctrl+c handler.
+    let cancel_receiver = {
+        let (cancel_sender, cancel_receiver) = kanal::bounded(1);
+        ctrlc::set_handler(move || {
+            let _ = cancel_sender.send(());
+        })
+        .change_context(RenderError)
+        .attach("failed to set ctrl+c handler")?;
+        cancel_receiver
+    };
 
     // Determine the encoder output path.
     // With audio: write to a temp file, then mux into the final output.
@@ -114,32 +115,34 @@ fn run() -> Result<(), Report<RenderError>> {
         .unwrap_or_else(|| output_path.clone());
 
     // Spawn render thread.
-    let progress_monitor = progress.clone();
-    let project_clone = project.clone();
-    let project_file_clone = cli.project.clone();
-    let encoding_clone = project.encoding.clone();
+    let render_handle = {
+        let progress_monitor = progress.clone();
+        let project_clone = project.clone();
+        let project_file_clone = cli.project.clone();
+        let encoding_clone = project.encoding.clone();
 
-    let render_handle = std::thread::spawn(move || {
-        let encoder = FfmpegEncoder::new(
-            &encoder_output,
-            (project_clone.resolution[0], project_clone.resolution[1]),
-            project_clone.fps,
-            &encoding_clone,
-        )
-        .change_context(RenderError)
-        .attach("failed to create ffmpeg encoder")?;
+        std::thread::spawn(move || {
+            let encoder = FfmpegEncoder::new(
+                &encoder_output,
+                (project_clone.resolution[0], project_clone.resolution[1]),
+                project_clone.fps,
+                &encoding_clone,
+            )
+            .change_context(RenderError)
+            .attach("failed to create ffmpeg encoder")?;
 
-        let job = RenderJob::new(renderer_service);
-        job.render(
-            &encoder,
-            &project_clone,
-            &project_file_clone,
-            start_time,
-            end_time,
-            &progress_monitor,
-            &cancel_receiver,
-        )
-    });
+            let job = RenderJob::new(renderer_service);
+            job.render(
+                &encoder,
+                &project_clone,
+                &project_file_clone,
+                start_time,
+                end_time,
+                &progress_monitor,
+                &cancel_receiver,
+            )
+        })
+    };
 
     // Monitor progress from main thread.
     loop {
