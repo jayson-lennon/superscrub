@@ -1,4 +1,4 @@
-//! Test fake for [`FrameEncoder`](crate::encoder::FrameEncoder).
+//! Test fake for [`FrameEncoder`].
 //!
 //! Stores raw frame data in memory for test assertions.
 

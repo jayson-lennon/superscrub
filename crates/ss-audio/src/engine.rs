@@ -1,18 +1,21 @@
-//! Trait definitions for audio playback.
+//! Audio engine trait, playback state, and error types.
 //!
 //! The [`AudioEngine`] trait abstracts over audio backends, enabling
-//! dependency injection for testing. [`PlaybackState`] tracks whether
+//! dependency injection for testing. [`AudioPlaybackState`] tracks whether
 //! audio is playing or paused.
 
 use std::path::Path;
 
 use error_stack::Report;
 
-use crate::errors::AudioError;
+/// Failed to perform an audio operation.
+#[derive(Debug, wherror::Error)]
+#[error("audio engine error")]
+pub struct AudioError;
 
 /// Audio playback state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum PlaybackState {
+pub enum AudioPlaybackState {
     /// Audio is paused (or no audio loaded).
     #[default]
     Paused,
@@ -77,5 +80,9 @@ pub trait AudioEngine: Send + Sync {
     fn duration(&self) -> f64;
 
     /// Report the current playback state.
-    fn state(&self) -> PlaybackState;
+    fn state(&self) -> AudioPlaybackState;
 }
+
+pub mod fake;
+pub mod rodio;
+pub mod service;

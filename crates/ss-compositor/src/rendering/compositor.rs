@@ -9,15 +9,17 @@ use std::sync::Arc;
 use error_stack::{Report, ResultExt};
 use image::{Rgba, RgbaImage};
 use imageproc::geometric_transformations::{Interpolation, Projection, warp_into};
+use tracing::debug;
 
 use ss_core::clip::ClipType;
 use ss_core::interpolation::resolve_clip;
 use ss_core::path_resolve::resolve_path;
 use ss_core::project::Project;
 
-use crate::errors::CompositorError;
+use crate::image::ImageProvider;
+use crate::rendering::CompositorError;
+use crate::rendering::FrameRenderer;
 use crate::sizing::compute_placement;
-use crate::traits::{FrameRenderer, ImageProvider};
 use crate::viewport::Viewport;
 
 /// The main compositor renderer.
@@ -62,6 +64,8 @@ impl FrameRenderer for CompositorRenderer {
             .filter(|c| time >= c.start_time && time < c.end_time)
             .collect();
         active.sort_by_key(|c| c.z_index);
+
+        debug!("rendering frame: time={}, clips={}", time, active.len());
 
         // 4. For each clip: resolve transforms, warp, composite.
         for clip_def in active {

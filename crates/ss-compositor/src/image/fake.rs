@@ -10,12 +10,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use error_stack::Report;
 use image::{Rgba, RgbaImage};
 
-use crate::errors::ImageLoadError;
-use crate::traits::ImageProvider;
+use crate::image::ImageLoadError;
+use crate::image::ImageProvider;
 
 /// A fake image provider that returns pre-inserted images.
 ///
-/// Use [`insert_solid`] to add test images, and check [`load_count`]
+/// Use [`FakeImageProvider::insert_solid`] to add test images, and check [`FakeImageProvider::load_count`]
 /// to verify caching behavior.
 pub struct FakeImageProvider {
     images: HashMap<PathBuf, RgbaImage>,

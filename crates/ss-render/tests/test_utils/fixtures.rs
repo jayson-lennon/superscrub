@@ -1,6 +1,5 @@
 //! Test fixture builders for render tests.
 
-use ss_core::clip::{ClipDef, ClipType, Sizing};
 use ss_core::project::{EncodingConfig, Project};
 
 /// The project file path used in tests.
@@ -10,6 +9,7 @@ pub const PROJECT_FILE: &str = "/test/project.json";
 ///
 /// Resolution: 100×50, FPS: 10, Duration: 2.0s (20 frames).
 pub fn minimal_project() -> Project {
+    let clip = ss_core::test_utils::fixtures::build_image_clip("clip1", "img.png", 0.0, 2.0);
     Project {
         resolution: [100, 50],
         fps: 10,
@@ -18,19 +18,7 @@ pub fn minimal_project() -> Project {
         background: [0, 0, 0, 255],
         audio: None,
         encoding: EncodingConfig::default(),
-        clips: vec![ClipDef {
-            id: "clip1".into(),
-            clip_type: ClipType::Image {
-                path: "img.png".into(),
-            },
-            track: 0,
-            start_time: 0.0,
-            end_time: 2.0,
-            z_index: 0,
-            sizing: Sizing::Natural,
-            pivot: [0.5, 0.5],
-            animations: vec![],
-        }],
+        clips: vec![clip],
     }
 }
 

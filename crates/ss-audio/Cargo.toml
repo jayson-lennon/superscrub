@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
 ss-core = { path = "../ss-core" }
 wherror = { workspace = true }
 error-stack = { workspace = true }
@@ -17,3 +19,6 @@ rstest = { workspace = true }
 [[bin]]
 name = "ss-audio"
 path = "src/main.rs"
+
+[lints]
+workspace = true

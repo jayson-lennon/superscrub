@@ -1,8 +1,8 @@
 //! Test fixture builders.
 
-use ss_core::animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
-use ss_core::clip::{ClipDef, ClipType, Sizing};
-use ss_core::project::{AudioConfig, Project};
+use crate::animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
+use crate::clip::{ClipDef, ClipType, Sizing};
+use crate::project::{AudioConfig, Project};
 
 /// Build a minimal image clip with sensible defaults.
 pub fn build_image_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> ClipDef {
@@ -35,6 +35,22 @@ pub fn build_clip_with_animation(
     clip
 }
 
+/// Build an image clip with multiple animation tracks.
+pub fn build_clip_with_animations(
+    id: &str,
+    animations: Vec<(AnimatableProperty, Vec<Keyframe>)>,
+) -> ClipDef {
+    let mut clip = build_image_clip(id, "test.png", 0.0, 10.0);
+    clip.animations = animations
+        .into_iter()
+        .map(|(property, keyframes)| AnimationTrack {
+            property,
+            keyframes,
+        })
+        .collect();
+    clip
+}
+
 /// Build a minimal project with the given clips.
 pub fn build_project(clips: Vec<ClipDef>) -> Project {
     Project {
@@ -47,7 +63,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
             path: "assets/song.mp3".to_string(),
             start_time: 0.0,
         }),
-        encoding: ss_core::project::EncodingConfig::default(),
+        encoding: crate::project::EncodingConfig::default(),
         clips,
     }
 }

@@ -1,29 +1,23 @@
-//! Trait definitions for frame rendering and image loading.
+//! Frame rendering trait and error types.
 //!
-//! These traits decouple the compositor from filesystem operations
-//! and enable dependency injection for testing.
+//! The [`FrameRenderer`] trait abstracts over rendering backends,
+//! enabling dependency injection for testing.
 
 use std::path::Path;
 
 use error_stack::Report;
 use image::RgbaImage;
 
-use crate::errors::{CompositorError, ImageLoadError};
+pub mod compositor;
+pub mod service;
+
 use crate::viewport::Viewport;
 use ss_core::project::Project;
 
-/// Loads and caches images by path.
-pub trait ImageProvider: Send + Sync {
-    /// Returns the name of this provider backend (for debugging).
-    fn name(&self) -> &'static str;
-
-    /// Load or retrieve a cached image by path.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the image cannot be loaded.
-    fn get(&self, path: &Path) -> Result<RgbaImage, Report<ImageLoadError>>;
-}
+/// Failed to render a frame.
+#[derive(Debug, wherror::Error)]
+#[error("failed to render frame")]
+pub struct CompositorError;
 
 /// Renders a single frame of a project at a given time within a viewport.
 pub trait FrameRenderer: Send + Sync {

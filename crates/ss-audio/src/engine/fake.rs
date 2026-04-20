@@ -8,9 +8,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use error_stack::Report;
+use tracing::trace;
 
-use crate::errors::AudioError;
-use crate::traits::{AudioEngine, PlaybackState};
+use crate::engine::{AudioEngine, AudioError, AudioPlaybackState};
 
 /// Fake audio engine for testing.
 ///
@@ -33,7 +33,7 @@ pub struct FakeAudioEngine {
 #[derive(Default)]
 struct FakeState {
     loaded: bool,
-    playback: PlaybackState,
+    playback: AudioPlaybackState,
     position: f64,
     duration: f64,
     volume: f32,
@@ -82,32 +82,36 @@ impl AudioEngine for FakeAudioEngine {
     }
 
     fn load(&self, path: &Path) -> Result<(), Report<AudioError>> {
+        trace!("fake audio operation: load");
         self.load_count.fetch_add(1, Ordering::SeqCst);
         *self.last_loaded_path.lock().unwrap() = Some(path.display().to_string());
         let mut state = self.state.lock().unwrap();
         state.loaded = true;
-        state.playback = PlaybackState::Paused;
+        state.playback = AudioPlaybackState::Paused;
         state.position = 0.0;
         Ok(())
     }
 
     fn play(&self) {
+        trace!("fake audio operation: play");
         self.play_count.fetch_add(1, Ordering::SeqCst);
         let mut state = self.state.lock().unwrap();
-        if state.loaded && state.playback != PlaybackState::Playing {
-            state.playback = PlaybackState::Playing;
+        if state.loaded && state.playback != AudioPlaybackState::Playing {
+            state.playback = AudioPlaybackState::Playing;
         }
     }
 
     fn pause(&self) {
+        trace!("fake audio operation: pause");
         self.pause_count.fetch_add(1, Ordering::SeqCst);
         let mut state = self.state.lock().unwrap();
-        if state.playback == PlaybackState::Playing {
-            state.playback = PlaybackState::Paused;
+        if state.playback == AudioPlaybackState::Playing {
+            state.playback = AudioPlaybackState::Paused;
         }
     }
 
     fn seek(&self, time: f64) -> Result<(), Report<AudioError>> {
+        trace!("fake audio operation: seek");
         self.seek_count.fetch_add(1, Ordering::SeqCst);
         let mut state = self.state.lock().unwrap();
         state.position = time.clamp(0.0, state.duration);
@@ -126,7 +130,7 @@ impl AudioEngine for FakeAudioEngine {
         self.state.lock().unwrap().duration
     }
 
-    fn state(&self) -> PlaybackState {
+    fn state(&self) -> AudioPlaybackState {
         self.state.lock().unwrap().playback
     }
 }

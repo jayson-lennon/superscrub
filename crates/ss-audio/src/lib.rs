@@ -7,20 +7,14 @@
 //!
 //! # Architecture
 //!
-//! - [`traits`] — `AudioEngine` trait + `PlaybackState` enum
-//! - [`rodio_engine`] — Rodio-based real implementation
-//! - [`fake_engine`] — Test fake with call tracking
-//! - [`service`] — `AudioEngineService` wrapper
-//! - [`errors`] — `AudioError`
+//! - [`engine`] — Audio engine trait, playback state, and error types
+//! - [`engine::rodio`] — Rodio-based real implementation
+//! - [`engine::fake`] — Test fake with call tracking
+//! - [`engine::service`] — `AudioEngineService` wrapper
 
-pub mod errors;
-pub mod fake_engine;
-pub mod rodio_engine;
-pub mod service;
-pub mod traits;
+pub mod engine;
 
-pub use errors::AudioError;
-pub use fake_engine::FakeAudioEngine;
-pub use rodio_engine::RodioAudioEngine;
-pub use service::AudioEngineService;
-pub use traits::{AudioEngine, PlaybackState};
+pub use engine::fake::FakeAudioEngine;
+pub use engine::rodio::RodioAudioEngine;
+pub use engine::service::AudioEngineService;
+pub use engine::{AudioEngine, AudioError, AudioPlaybackState};

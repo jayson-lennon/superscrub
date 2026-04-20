@@ -9,9 +9,9 @@ use std::sync::Mutex;
 
 use error_stack::{Report, ResultExt};
 use rodio::{Decoder, DeviceSinkBuilder, Player, Source, source::SeekError};
+use tracing::{debug, info};
 
-use crate::errors::AudioError;
-use crate::traits::{AudioEngine, PlaybackState};
+use crate::engine::{AudioEngine, AudioError, AudioPlaybackState};
 
 /// Rodio-based audio engine.
 ///
@@ -29,7 +29,7 @@ struct RodioInner {
     /// Total duration of the loaded audio.
     duration: f64,
     /// Current playback state.
-    state: PlaybackState,
+    state: AudioPlaybackState,
     /// Volume, stored so we can apply it to new players.
     volume: f32,
 }
@@ -50,7 +50,7 @@ impl RodioAudioEngine {
             inner: Mutex::new(RodioInner {
                 player: None,
                 duration: 0.0,
-                state: PlaybackState::Paused,
+                state: AudioPlaybackState::Paused,
                 volume: 1.0,
             }),
         })
@@ -89,7 +89,9 @@ impl AudioEngine for RodioAudioEngine {
         }
         inner.player = Some(player);
         inner.duration = duration;
-        inner.state = PlaybackState::Paused;
+        inner.state = AudioPlaybackState::Paused;
+
+        info!("audio loaded: {}", path.display());
 
         Ok(())
     }
@@ -97,20 +99,22 @@ impl AudioEngine for RodioAudioEngine {
     fn play(&self) {
         let mut inner = self.inner.lock().unwrap();
         if let Some(player) = &inner.player
-            && inner.state != PlaybackState::Playing
+            && inner.state != AudioPlaybackState::Playing
         {
             player.play();
-            inner.state = PlaybackState::Playing;
+            inner.state = AudioPlaybackState::Playing;
+            debug!("audio play: position={}", self.position());
         }
     }
 
     fn pause(&self) {
         let mut inner = self.inner.lock().unwrap();
-        if inner.state == PlaybackState::Playing
+        if inner.state == AudioPlaybackState::Playing
             && let Some(player) = &inner.player
         {
             player.pause();
-            inner.state = PlaybackState::Paused;
+            inner.state = AudioPlaybackState::Paused;
+            debug!("audio pause: position={}", self.position());
         }
     }
 
@@ -151,7 +155,7 @@ impl AudioEngine for RodioAudioEngine {
         self.inner.lock().unwrap().duration
     }
 
-    fn state(&self) -> PlaybackState {
+    fn state(&self) -> AudioPlaybackState {
         self.inner.lock().unwrap().state
     }
 }

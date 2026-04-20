@@ -9,12 +9,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use error_stack::Report;
 use image::RgbaImage;
+use tracing::trace;
 
 use ss_core::project::Project;
 
-use crate::errors::PreviewError;
+use crate::cache::PreviewError;
+use crate::cache::{PreviewCache, PreviewRenderProgress};
 use crate::frame_index::total_frames;
-use crate::traits::{PreviewCache, RenderProgress};
 
 /// Fake preview cache for testing.
 ///
@@ -22,7 +23,7 @@ use crate::traits::{PreviewCache, RenderProgress};
 /// and tracking method calls.
 pub struct FakePreviewCache {
     frames: Mutex<Vec<Option<RgbaImage>>>,
-    progress: Mutex<RenderProgress>,
+    progress: Mutex<PreviewRenderProgress>,
     /// Number of times `start_render` has been called.
     pub start_render_count: AtomicUsize,
     /// Number of times `cancel` has been called.
@@ -38,7 +39,7 @@ impl FakePreviewCache {
     pub fn new() -> Self {
         Self {
             frames: Mutex::new(Vec::new()),
-            progress: Mutex::new(RenderProgress {
+            progress: Mutex::new(PreviewRenderProgress {
                 rendered: 0,
                 total: 0,
             }),
@@ -85,10 +86,11 @@ impl PreviewCache for FakePreviewCache {
         preview_resolution: (u32, u32),
         preview_fps: u32,
     ) -> Result<(), Report<PreviewError>> {
+        trace!("fake cache operation: start_render");
         self.start_render_count.fetch_add(1, Ordering::SeqCst);
         let frame_count = total_frames(preview_fps, project.duration);
         *self.frames.lock().unwrap() = vec![None; frame_count];
-        *self.progress.lock().unwrap() = RenderProgress {
+        *self.progress.lock().unwrap() = PreviewRenderProgress {
             rendered: 0,
             total: frame_count,
         };
@@ -105,7 +107,7 @@ impl PreviewCache for FakePreviewCache {
             .and_then(|f| f.clone())
     }
 
-    fn progress(&self) -> RenderProgress {
+    fn progress(&self) -> PreviewRenderProgress {
         *self.progress.lock().unwrap()
     }
 

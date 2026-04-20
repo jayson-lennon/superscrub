@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tracing.workspace = true
 ss-core = { path = "../ss-core" }
 ss-compositor = { path = "../ss-compositor" }
 wherror = { workspace = true }
@@ -14,3 +15,6 @@ derive_more = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+
+[lints]
+workspace = true

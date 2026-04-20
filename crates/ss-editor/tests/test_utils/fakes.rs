@@ -10,7 +10,7 @@ use ss_preview::{FakePreviewCache, PreviewCacheService};
 /// A fake config watcher that always reports no changes.
 pub struct FakeConfigWatcher;
 
-impl ss_core::traits::ConfigWatcher for FakeConfigWatcher {
+impl ss_core::ConfigWatcher for FakeConfigWatcher {
     fn name(&self) -> &'static str {
         "fake"
     }
@@ -18,7 +18,7 @@ impl ss_core::traits::ConfigWatcher for FakeConfigWatcher {
     fn watch(
         &self,
         _path: &std::path::Path,
-    ) -> Result<(), error_stack::Report<ss_core::errors::ConfigWatchError>> {
+    ) -> Result<(), error_stack::Report<ss_core::ConfigWatchError>> {
         Ok(())
     }
 

@@ -1,32 +1,11 @@
 use std::path::PathBuf;
 
-use ss_core::clip::{ClipDef, ClipType, Sizing};
-use ss_core::project::{EncodingConfig, Project};
 use ss_editor::EditorState;
 
-fn minimal_project() -> Project {
-    Project {
-        resolution: [200, 100],
-        fps: 30,
-        duration: 10.0,
-        output: "out.mp4".into(),
-        background: [0, 0, 0, 255],
-        audio: None,
-        encoding: EncodingConfig::default(),
-        clips: vec![ClipDef {
-            id: "clip1".into(),
-            clip_type: ClipType::Image {
-                path: "img.png".into(),
-            },
-            track: 0,
-            start_time: 0.0,
-            end_time: 10.0,
-            z_index: 0,
-            sizing: Sizing::Natural,
-            pivot: [0.5, 0.5],
-            animations: vec![],
-        }],
-    }
+mod test_utils;
+
+fn minimal_project() -> ss_core::project::Project {
+    test_utils::fixtures::minimal_project()
 }
 
 #[test]

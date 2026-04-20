@@ -1,7 +1,7 @@
-//! Trait definitions for preview frame caching.
+//! Preview cache trait, progress tracking, and error types.
 //!
 //! The [`PreviewCache`] trait abstracts over cache backends, enabling
-//! dependency injection for testing. [`RenderProgress`] reports rendering status.
+//! dependency injection for testing. [`PreviewRenderProgress`] reports rendering status.
 
 use std::path::PathBuf;
 
@@ -10,18 +10,21 @@ use image::RgbaImage;
 
 use ss_core::project::Project;
 
-use crate::errors::PreviewError;
+/// Failed to perform a preview operation.
+#[derive(Debug, wherror::Error)]
+#[error("preview cache error")]
+pub struct PreviewError;
 
 /// Progress of a background render operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RenderProgress {
+pub struct PreviewRenderProgress {
     /// Number of frames rendered so far.
     pub rendered: usize,
     /// Total number of frames to render.
     pub total: usize,
 }
 
-impl RenderProgress {
+impl PreviewRenderProgress {
     /// Whether all frames have been rendered.
     pub fn is_complete(&self) -> bool {
         self.rendered == self.total
@@ -70,10 +73,14 @@ pub trait PreviewCache: Send + Sync {
     fn get_frame(&self, index: usize) -> Option<RgbaImage>;
 
     /// Get the current render progress.
-    fn progress(&self) -> RenderProgress;
+    fn progress(&self) -> PreviewRenderProgress;
 
     /// Cancel any in-progress render.
     ///
     /// Already-rendered frames remain accessible.
     fn cancel(&self);
 }
+
+pub mod background;
+pub mod fake;
+pub mod service;

@@ -4,10 +4,16 @@
 //! multi-track transform resolution. Given a clip and a time, it produces
 //! a fully resolved transform state.
 
+use tracing::trace;
+
 use crate::animation::{AnimatableProperty, Easing, Keyframe};
 use crate::clip::ClipDef;
-use crate::errors::InterpolationError;
 use crate::transform::ResolvedClip;
+
+/// Failed during interpolation.
+#[derive(Debug, wherror::Error)]
+#[error("interpolation error")]
+pub struct InterpolationError;
 
 /// Apply an easing curve to a normalized progress value.
 ///
@@ -28,6 +34,7 @@ pub fn apply_easing(t: f32, easing: Easing) -> f32 {
 /// # Errors
 ///
 /// Returns an error if the keyframes list is empty.
+#[allow(clippy::cast_possible_truncation)]
 pub fn interpolate_keyframes(
     keyframes: &[Keyframe],
     time: f64,
@@ -51,8 +58,11 @@ pub fn interpolate_keyframes(
     }
 
     // After or at last keyframe: hold last value.
-    if time >= keyframes.last().expect("already checked non-empty").time {
-        return Ok(keyframes.last().expect("already checked non-empty").value);
+    // SAFETY: checked non-empty above.
+    #[allow(clippy::indexing_slicing)]
+    let last_idx = keyframes.len() - 1;
+    if time >= keyframes[last_idx].time {
+        return Ok(keyframes[last_idx].value);
     }
 
     // Find the two keyframes surrounding `time`.
@@ -74,7 +84,8 @@ pub fn interpolate_keyframes(
     }
 
     // Should not reach here given the boundary checks above.
-    Ok(keyframes.last().expect("already checked non-empty").value)
+    #[allow(clippy::indexing_slicing)]
+    Ok(keyframes[last_idx].value)
 }
 
 /// Resolve the full state of a clip at a given time.
@@ -99,6 +110,8 @@ pub fn resolve_clip(
     let mut scale_y = 1.0f32;
     let mut rotation = 0.0f32;
     let mut opacity = 1.0f32;
+
+    trace!("resolving clip: id={}, time={}", clip.id, time);
 
     for track in &clip.animations {
         let value = interpolate_keyframes(&track.keyframes, time)?;

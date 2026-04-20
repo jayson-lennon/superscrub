@@ -5,7 +5,7 @@
 
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::RgbaImage;
-use ss_preview::RenderProgress;
+use ss_preview::PreviewRenderProgress;
 
 /// Manages the viewport panel display.
 #[derive(Default)]
@@ -25,7 +25,12 @@ impl ViewportPanel {
     /// - If a frame is available, display it scaled to fit the panel.
     /// - If rendering is in progress, show a progress bar.
     /// - If no project is loaded, show a placeholder message.
-    pub fn show(&mut self, ui: &mut egui::Ui, frame: Option<&RgbaImage>, progress: RenderProgress) {
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        frame: Option<&RgbaImage>,
+        progress: PreviewRenderProgress,
+    ) {
         ui.vertical_centered(|ui| {
             ui.label(egui::RichText::new("Viewport").size(14.0).strong());
 

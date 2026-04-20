@@ -5,6 +5,8 @@
 //! the viewport show right now?" It owns `EditorState` and drives
 //! the audio engine and preview cache in response to user actions.
 
+use tracing::debug;
+
 use ss_audio::AudioEngineService;
 use ss_preview::PreviewCacheService;
 use ss_preview::time_to_frame_index;
@@ -18,11 +20,6 @@ pub struct PlaybackController {
     cache: PreviewCacheService,
     preview_fps: u32,
 }
-
-/// Failed to perform a playback operation.
-#[derive(Debug, wherror::Error)]
-#[error("playback error")]
-pub struct PlaybackError;
 
 impl PlaybackController {
     /// Create a new playback controller.
@@ -52,12 +49,14 @@ impl PlaybackController {
 
     /// Start playback from the current position.
     pub fn play(&mut self) {
+        debug!("playback play: time={}", self.state.current_time());
         self.state.start_playback();
         self.audio.play();
     }
 
     /// Pause playback. Position is retained.
     pub fn pause(&mut self) {
+        debug!("playback pause: time={}", self.state.current_time());
         self.state.stop_playback();
         self.audio.pause();
     }
@@ -80,6 +79,7 @@ impl PlaybackController {
 
     /// Seek to a specific time and update audio position.
     pub fn seek_to(&mut self, time: f64) {
+        debug!("playback seek: time={}", time);
         self.state.seek_to(time);
         let _ = self.audio.seek(self.state.current_time());
     }
@@ -125,7 +125,7 @@ impl PlaybackController {
     }
 
     /// Get the current render progress from the preview cache.
-    pub fn render_progress(&self) -> ss_preview::RenderProgress {
+    pub fn render_progress(&self) -> ss_preview::PreviewRenderProgress {
         self.cache.progress()
     }
 
@@ -148,16 +148,12 @@ impl PlaybackController {
         &mut self,
         preview_resolution: (u32, u32),
     ) -> Result<(), error_stack::Report<ss_preview::PreviewError>> {
-        let project = self
-            .state
-            .project()
-            .cloned()
-            .ok_or_else(|| error_stack::Report::new(ss_preview::PreviewError))?;
-        let project_file = self
-            .state
-            .project_file()
-            .cloned()
-            .ok_or_else(|| error_stack::Report::new(ss_preview::PreviewError))?;
+        let project = self.state.project().cloned().ok_or_else(|| {
+            error_stack::Report::new(ss_preview::PreviewError).attach("no project loaded")
+        })?;
+        let project_file = self.state.project_file().cloned().ok_or_else(|| {
+            error_stack::Report::new(ss_preview::PreviewError).attach("no project file set")
+        })?;
 
         self.cache
             .start_render(project, project_file, preview_resolution, self.preview_fps)

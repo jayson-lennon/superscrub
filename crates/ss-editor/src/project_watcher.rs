@@ -7,7 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use error_stack::Report;
-use ss_core::traits::ConfigWatcher;
+use ss_core::ConfigWatcher;
 
 /// Failed to watch the project file.
 #[derive(Debug, wherror::Error)]

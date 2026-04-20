@@ -7,11 +7,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use error_stack::Report;
+use error_stack::{Report, ResultExt};
 use image::RgbaImage;
+use tracing::debug;
 
-use crate::errors::ImageLoadError;
-use crate::traits::ImageProvider;
+use crate::image::ImageLoadError;
+use crate::image::ImageProvider;
 
 /// Loads images from the filesystem and caches them in memory.
 pub struct FilesystemImageProvider {
@@ -46,8 +47,11 @@ impl ImageProvider for FilesystemImageProvider {
 
         // Load from disk.
         let img = image::open(path)
-            .map_err(|_| Report::new(ImageLoadError).attach(format!("path: {}", path.display())))?
+            .change_context(ImageLoadError)
+            .attach(format!("image path: {}", path.display()))?
             .to_rgba8();
+
+        debug!("image loaded: {}", path.display());
 
         self.cache
             .lock()

@@ -21,7 +21,7 @@ struct Args {
 /// deferred until needed; Phase 4 uses this stub).
 struct StubConfigWatcher;
 
-impl ss_core::traits::ConfigWatcher for StubConfigWatcher {
+impl ss_core::ConfigWatcher for StubConfigWatcher {
     fn name(&self) -> &'static str {
         "stub"
     }
@@ -29,7 +29,7 @@ impl ss_core::traits::ConfigWatcher for StubConfigWatcher {
     fn watch(
         &self,
         _path: &std::path::Path,
-    ) -> Result<(), error_stack::Report<ss_core::errors::ConfigWatchError>> {
+    ) -> Result<(), error_stack::Report<ss_core::ConfigWatchError>> {
         Ok(())
     }
 
@@ -39,6 +39,7 @@ impl ss_core::traits::ConfigWatcher for StubConfigWatcher {
 }
 
 fn main() -> eframe::Result<()> {
+    tracing_subscriber::fmt().init();
     let args = Args::parse();
     let config = AppConfig::load().unwrap_or_default();
 

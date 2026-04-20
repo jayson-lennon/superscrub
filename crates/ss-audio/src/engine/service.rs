@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 use derive_more::Debug;
 
-use crate::errors::AudioError;
-use crate::traits::{AudioEngine, PlaybackState};
+use crate::engine::{AudioEngine, AudioError, AudioPlaybackState};
 
 /// Service wrapper for [`AudioEngine`].
 #[derive(Debug, Clone)]
@@ -65,7 +64,7 @@ impl AudioEngineService {
     }
 
     /// Report the current playback state.
-    pub fn state(&self) -> PlaybackState {
+    pub fn state(&self) -> AudioPlaybackState {
         self.backend.state()
     }
 }

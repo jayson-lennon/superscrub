@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
 ss-core = { path = "../ss-core" }
 euclid = { workspace = true }
 wherror = { workspace = true }
@@ -29,3 +31,6 @@ path = "src/bin/gen_test_images.rs"
 [[bin]]
 name = "gen-demo-images"
 path = "src/bin/gen_demo_images.rs"
+
+[lints]
+workspace = true

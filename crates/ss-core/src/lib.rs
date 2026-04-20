@@ -12,22 +12,24 @@
 //! - [`interpolation`] — Easing functions, keyframe interpolation, clip resolution
 //! - [`transform`] — Resolved clip state after interpolation
 //! - [`path_resolve`] — Path resolution relative to project file
-//! - [`traits`] — Trait definitions for project loading and file watching
+//! - [`watcher`] — Config file watching trait
 
 pub mod animation;
 pub mod clip;
-pub mod errors;
 pub mod interpolation;
 pub mod path_resolve;
 pub mod project;
-pub mod traits;
 pub mod transform;
+pub mod watcher;
+
+#[doc(hidden)]
+pub mod test_utils;
 
 pub use animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
 pub use clip::{ClipDef, ClipType, FitAnchor, FitMode, Sizing};
-pub use errors::{ConfigWatchError, InterpolationError, PathResolveError, ProjectLoadError};
-pub use interpolation::{apply_easing, interpolate_keyframes, resolve_clip};
-pub use path_resolve::resolve_path;
+pub use interpolation::{InterpolationError, apply_easing, interpolate_keyframes, resolve_clip};
+pub use path_resolve::{PathResolveError, resolve_path};
+pub use project::loader::{ProjectLoadError, ProjectLoader};
 pub use project::{AudioConfig, EncodingConfig, Project};
-pub use traits::{ConfigWatcher, ProjectLoader};
 pub use transform::ResolvedClip;
+pub use watcher::{ConfigWatchError, ConfigWatcher};

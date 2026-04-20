@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use ss_audio::AudioEngineService;
 use ss_compositor::FrameRendererService;
-use ss_core::traits::ConfigWatcher;
+use ss_core::ConfigWatcher;
 use ss_preview::PreviewCacheService;
 
 /// Container for all injectable service dependencies.

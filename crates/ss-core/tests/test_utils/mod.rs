@@ -1,3 +1,1 @@
-//! Test utilities for ss-core.
-
-pub mod fixtures;
+pub use ss_core::test_utils::fixtures;

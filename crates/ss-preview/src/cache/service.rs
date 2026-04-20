@@ -7,8 +7,8 @@ use derive_more::Debug;
 use image::RgbaImage;
 use ss_core::project::Project;
 
-use crate::errors::PreviewError;
-use crate::traits::{PreviewCache, RenderProgress};
+use crate::cache::PreviewError;
+use crate::cache::{PreviewCache, PreviewRenderProgress};
 
 /// Service wrapper for [`PreviewCache`].
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl PreviewCacheService {
     }
 
     /// Get the current render progress.
-    pub fn progress(&self) -> RenderProgress {
+    pub fn progress(&self) -> PreviewRenderProgress {
         self.backend.progress()
     }
 

@@ -2,7 +2,7 @@
 //!
 //! Horizontal bar at the bottom of the editor window.
 
-use ss_audio::PlaybackState;
+use crate::editor_state::TransportState;
 
 /// Manages the transport control panel.
 pub struct TransportPanel {
@@ -33,7 +33,7 @@ impl TransportPanel {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
-        playback_state: PlaybackState,
+        playback_state: TransportState,
         current_time: f64,
         duration: f64,
     ) -> Vec<TransportAction> {
@@ -42,8 +42,8 @@ impl TransportPanel {
         ui.horizontal(|ui| {
             // Play/Pause toggle button.
             let label = match playback_state {
-                PlaybackState::Playing => "⏸ Pause",
-                PlaybackState::Paused => "▶ Play",
+                TransportState::Playing => "⏸ Pause",
+                TransportState::Paused => "▶ Play",
             };
             if ui.button(label).clicked() {
                 actions.push(TransportAction::TogglePlayback);

@@ -7,23 +7,14 @@
 //!
 //! # Architecture
 //!
-//! - [`traits`] — `PreviewCache` trait + `RenderProgress` struct
-//! - [`background_cache`] — Real implementation with rayon parallel rendering
-//! - [`fake_cache`] — Test fake with call tracking
+//! - [`cache`] — Preview cache trait, progress tracking, and implementations
 //! - [`frame_index`] — Time ↔ frame index conversion utilities
-//! - [`service`] — `PreviewCacheService` wrapper
-//! - [`errors`] — `PreviewError`
 
-pub mod background_cache;
-pub mod errors;
-pub mod fake_cache;
+pub mod cache;
 pub mod frame_index;
-pub mod service;
-pub mod traits;
 
-pub use background_cache::BackgroundPreviewCache;
-pub use errors::PreviewError;
-pub use fake_cache::FakePreviewCache;
+pub use cache::background::BackgroundPreviewCache;
+pub use cache::fake::FakePreviewCache;
+pub use cache::service::PreviewCacheService;
+pub use cache::{PreviewCache, PreviewError, PreviewRenderProgress};
 pub use frame_index::{frame_index_to_time, time_to_frame_index, total_frames};
-pub use service::PreviewCacheService;
-pub use traits::{PreviewCache, RenderProgress};

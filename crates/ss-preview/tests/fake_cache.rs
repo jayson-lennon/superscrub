@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 
 use image::RgbaImage;
 use ss_core::project::{EncodingConfig, Project};
-use ss_preview::{FakePreviewCache, PreviewCache, RenderProgress};
+use ss_preview::{FakePreviewCache, PreviewCache, PreviewRenderProgress};
 
 fn test_project() -> Project {
     Project {
@@ -158,8 +158,8 @@ fn set_progress_updates_progress() {
 
 #[test]
 fn progress_is_complete_when_done() {
-    // Given a RenderProgress with rendered == total.
-    let progress = RenderProgress {
+    // Given a PreviewRenderProgress with rendered == total.
+    let progress = PreviewRenderProgress {
         rendered: 10,
         total: 10,
     };
@@ -170,8 +170,8 @@ fn progress_is_complete_when_done() {
 
 #[test]
 fn progress_fraction_when_half_done() {
-    // Given a RenderProgress with rendered=50, total=100.
-    let progress = RenderProgress {
+    // Given a PreviewRenderProgress with rendered=50, total=100.
+    let progress = PreviewRenderProgress {
         rendered: 50,
         total: 100,
     };

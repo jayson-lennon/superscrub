@@ -12,10 +12,11 @@ use image::RgbaImage;
 use rayon::prelude::*;
 use ss_compositor::{FrameRenderer, Viewport};
 use ss_core::project::Project;
+use tracing::{info, warn};
 
-use crate::errors::PreviewError;
+use crate::cache::PreviewError;
+use crate::cache::{PreviewCache, PreviewRenderProgress};
 use crate::frame_index::{frame_index_to_time, total_frames};
-use crate::traits::{PreviewCache, RenderProgress};
 
 /// Per-render shared state. Created fresh for each `start_render` call.
 struct RenderState {
@@ -82,6 +83,11 @@ impl PreviewCache for BackgroundPreviewCache {
         // Store the new render state (replaces previous).
         *self.render.lock().unwrap() = Some(render_state.clone());
 
+        info!(
+            "preview render started: frames={}, resolution={:?}",
+            frame_count, preview_resolution
+        );
+
         // Spawn a thread that drives rayon parallel rendering.
         let renderer = self.renderer.clone();
         let rs = render_state;
@@ -98,13 +104,16 @@ impl PreviewCache for BackgroundPreviewCache {
                         rs.frames.lock().unwrap()[index] = Some(rgba_image);
                         rs.rendered_count.fetch_add(1, Ordering::Relaxed);
                     }
-                    Err(e) => {
-                        eprintln!(
-                            "warning: failed to render preview frame {index}/{frame_count}: {e:?}"
-                        );
+                    Err(_e) => {
+                        warn!("frame render failed: index={}", index);
                     }
                 }
             });
+            if !rs.cancel.load(Ordering::Relaxed) {
+                info!("preview render completed");
+            } else {
+                info!("preview render cancelled");
+            }
         });
 
         Ok(())
@@ -117,14 +126,14 @@ impl PreviewCache for BackgroundPreviewCache {
             .and_then(|rs| rs.frames.lock().unwrap().get(index).and_then(|f| f.clone()))
     }
 
-    fn progress(&self) -> RenderProgress {
+    fn progress(&self) -> PreviewRenderProgress {
         let guard = self.render.lock().unwrap();
         match guard.as_ref() {
-            None => RenderProgress {
+            None => PreviewRenderProgress {
                 rendered: 0,
                 total: 0,
             },
-            Some(rs) => RenderProgress {
+            Some(rs) => PreviewRenderProgress {
                 rendered: rs.rendered_count.load(Ordering::Relaxed),
                 total: rs.total,
             },

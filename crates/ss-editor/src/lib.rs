@@ -9,7 +9,7 @@
 //!
 //! - [`app`] — `EditorApp` (eframe::App impl), thin UI shell
 //! - [`app_config`] — Persistent settings via `dirs` crate
-//! - [`editor_state`] — Core state: current time, project, playing flag
+//! - [`editor_state`] — Core state: current time, project, transport state
 //! - [`playback_controller`] — Coordinates time, audio, and preview cache
 //! - [`project_watcher`] — Detects project file changes
 //! - [`services`] — Service container for all injectable deps
@@ -32,6 +32,7 @@ pub mod viewport_panel;
 pub use app::EditorApp;
 pub use app_config::AppConfig;
 pub use editor_state::EditorState;
+pub use editor_state::TransportState;
 pub use playback_controller::PlaybackController;
 pub use project_watcher::ProjectWatcher;
 pub use services::Services;

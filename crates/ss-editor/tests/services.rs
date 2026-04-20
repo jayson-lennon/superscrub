@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use ss_audio::PlaybackState;
+use ss_audio::AudioPlaybackState;
 
 mod test_utils;
 
@@ -9,7 +9,7 @@ fn services_holds_all_deps() {
     let (services, _, _) = test_utils::fakes::create_test_services();
 
     // Verify services are accessible.
-    assert!(services.audio.state() == PlaybackState::Paused);
+    assert!(services.audio.state() == AudioPlaybackState::Paused);
     assert_eq!(services.preview.progress().total, 0);
 }
 

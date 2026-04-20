@@ -7,11 +7,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ss_compositor::{CompositorRenderer, FakeImageProvider};
-use ss_core::clip::{ClipDef, ClipType, Sizing};
 use ss_core::project::{EncodingConfig, Project};
 use ss_preview::{BackgroundPreviewCache, PreviewCache};
 
 fn minimal_project() -> Project {
+    let clip = ss_core::test_utils::fixtures::build_image_clip("test", "test.png", 0.0, 1.0);
     Project {
         resolution: [100, 100],
         fps: 10,
@@ -20,19 +20,7 @@ fn minimal_project() -> Project {
         background: [0, 0, 0, 255],
         audio: None,
         encoding: EncodingConfig::default(),
-        clips: vec![ClipDef {
-            id: "test".into(),
-            clip_type: ClipType::Image {
-                path: "test.png".into(),
-            },
-            track: 0,
-            start_time: 0.0,
-            end_time: 1.0,
-            z_index: 0,
-            sizing: Sizing::Natural,
-            pivot: [0.5, 0.5],
-            animations: vec![],
-        }],
+        clips: vec![clip],
     }
 }
 

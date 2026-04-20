@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use error_stack::{Report, ResultExt};
 use image::RgbaImage;
+use tracing::debug;
 
 use ss_core::project::EncodingConfig;
 
@@ -116,6 +117,8 @@ impl FfmpegEncoder {
             .take()
             .ok_or_else(|| Report::new(EncodeError).attach("failed to get ffmpeg stdin"))?;
 
+        debug!("ffmpeg encoder launched");
+
         Ok(Self {
             state: parking_lot::Mutex::new(Some(EncoderState { child, stdin })),
             output_path: Arc::from(output_path),
@@ -163,6 +166,8 @@ impl FrameEncoder for FfmpegEncoder {
             return Err(Report::new(EncodeError)
                 .attach(format!("ffmpeg exited with status {}", exit_status)));
         }
+
+        debug!("encoder finished");
 
         Ok(())
     }

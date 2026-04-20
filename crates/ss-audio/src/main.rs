@@ -12,9 +12,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use ss_audio::{AudioEngine, PlaybackState, RodioAudioEngine};
+use ss_audio::{AudioEngine, AudioPlaybackState, RodioAudioEngine};
 
 fn main() {
+    tracing_subscriber::fmt().init();
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
@@ -79,7 +80,7 @@ fn main() {
         let pct = if dur > 0.0 { pos / dur * 100.0 } else { 0.0 };
         eprint!("\r  position: {pos:6.1}s / {dur:.1}s ({pct:5.1}%) [{state:?}]  ");
 
-        if state == PlaybackState::Paused && pos >= dur - 0.1 {
+        if state == AudioPlaybackState::Paused && pos >= dur - 0.1 {
             eprintln!("\nPlayback complete.");
             break;
         }

@@ -4,6 +4,7 @@ use std::path::Path;
 use std::process::Command;
 
 use error_stack::{Report, ResultExt};
+use tracing::debug;
 
 /// ffmpeg was not found on the system.
 #[derive(Debug, wherror::Error)]
@@ -36,6 +37,8 @@ pub fn detect_ffmpeg() -> Result<(), Report<FfmpegNotFoundError>> {
         return Err(Report::new(FfmpegNotFoundError));
     }
 
+    debug!("ffmpeg detected");
+
     Ok(())
 }
 
@@ -64,6 +67,7 @@ pub fn mux_audio(
     output_path: &Path,
     audio_start_time: f64,
 ) -> Result<(), Report<MuxError>> {
+    debug!("audio mux started");
     let mut cmd = Command::new("ffmpeg");
 
     cmd.arg("-y").arg("-i").arg(video_path);
@@ -94,6 +98,8 @@ pub fn mux_audio(
             Report::new(MuxError).attach(format!("ffmpeg mux exited with status {}", status))
         );
     }
+
+    debug!("audio mux completed");
 
     Ok(())
 }

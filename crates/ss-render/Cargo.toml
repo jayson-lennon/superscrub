@@ -12,6 +12,8 @@ name = "ss-render"
 path = "src/main.rs"
 
 [dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
 ss-core = { path = "../ss-core" }
 ss-compositor = { path = "../ss-compositor" }
 ss-preview = { path = "../ss-preview" }
@@ -29,3 +31,6 @@ ctrlc = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+
+[lints]
+workspace = true

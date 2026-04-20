@@ -5,7 +5,9 @@
 
 use std::path::PathBuf;
 
+use error_stack::ResultExt;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
 /// Persistent application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,17 +73,23 @@ impl AppConfig {
     /// Returns an error if the config file exists but cannot be parsed.
     pub fn load() -> Result<Self, error_stack::Report<AppConfigError>> {
         let path = Self::config_path()
-            .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))?;
+            .change_context(AppConfigError)
+            .attach("failed to determine config directory")?;
 
         if !path.exists() {
             return Ok(Self::default());
         }
 
         let content = std::fs::read_to_string(&path)
-            .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))?;
+            .change_context(AppConfigError)
+            .attach("failed to read config file")?;
 
-        serde_json::from_str(&content)
-            .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))
+        let config: Self = serde_json::from_str(&content)
+            .change_context(AppConfigError)
+            .attach("failed to parse config JSON")?;
+
+        info!("app config loaded");
+        Ok(config)
     }
 
     /// Save the config to disk.
@@ -92,18 +100,25 @@ impl AppConfig {
     /// cannot be written.
     pub fn save(&self) -> Result<(), error_stack::Report<AppConfigError>> {
         let path = Self::config_path()
-            .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))?;
+            .change_context(AppConfigError)
+            .attach("failed to determine config directory")?;
 
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))?;
+                .change_context(AppConfigError)
+                .attach("failed to create config directory")?;
         }
 
         let content = serde_json::to_string_pretty(self)
-            .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))?;
+            .change_context(AppConfigError)
+            .attach("failed to serialize config")?;
 
         std::fs::write(&path, content)
-            .map_err(|e| error_stack::Report::new(AppConfigError).attach(e.to_string()))
+            .change_context(AppConfigError)
+            .attach("failed to write config file")?;
+
+        debug!("app config saved");
+        Ok(())
     }
 
     /// Compute the preview resolution for a given project resolution.

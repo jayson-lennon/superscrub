@@ -11,9 +11,8 @@ use image::Rgba;
 use ss_compositor::{FakeImageProvider, FrameRenderer, ImageProvider, Viewport};
 use ss_core::animation::{AnimatableProperty, AnimationTrack};
 use ss_core::clip::Sizing;
-use test_utils::fixtures::{
-    PROJECT_FILE, build_image_clip, build_project, create_renderer, kf, render_frame,
-};
+use ss_core::test_utils::fixtures::{build_image_clip, kf};
+use test_utils::fixtures::{PROJECT_FILE, build_project, create_renderer, render_frame};
 
 const RED: [u8; 4] = [255, 0, 0, 255];
 const GREEN: [u8; 4] = [0, 255, 0, 255];

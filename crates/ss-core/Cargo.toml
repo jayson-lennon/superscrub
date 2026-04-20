@@ -4,11 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tracing.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 euclid = { workspace = true }
 wherror = { workspace = true }
 error-stack = { workspace = true }
 
+
 [dev-dependencies]
 rstest = { workspace = true }
+
+[lints]
+workspace = true

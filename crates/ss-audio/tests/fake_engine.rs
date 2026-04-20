@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use ss_audio::{AudioEngine, AudioEngineService, FakeAudioEngine, PlaybackState};
+use ss_audio::{AudioEngine, AudioEngineService, AudioPlaybackState, FakeAudioEngine};
 
 #[test]
 fn name_returns_fake() {
@@ -23,7 +23,7 @@ fn initial_state_is_paused() {
     let engine = FakeAudioEngine::new();
 
     // Then the initial state is Paused.
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn load_sets_state_to_paused() {
     engine.load(std::path::Path::new("test.wav")).unwrap();
 
     // Then the state is Paused.
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn play_transitions_to_playing() {
     engine.play();
 
     // Then the state is Playing.
-    assert_eq!(engine.state(), PlaybackState::Playing);
+    assert_eq!(engine.state(), AudioPlaybackState::Playing);
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn pause_transitions_from_playing_to_paused() {
     engine.pause();
 
     // Then the state is Paused.
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn pause_is_noop_when_already_paused() {
 
     // Then pause_count incremented but state is still Paused.
     assert_eq!(engine.pause_count.load(Ordering::SeqCst), 1);
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
 }
 
 #[test]
@@ -177,7 +177,7 @@ fn set_volume_clamps_high() {
     engine.seek(0.0).unwrap();
 
     // Then the engine accepts the call without error (observable: no panic).
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn play_is_noop_when_not_loaded() {
     // Then play_count is incremented (the method was called).
     assert_eq!(engine.play_count.load(Ordering::SeqCst), 1);
     // And state remains Paused since nothing is loaded.
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
 }
 
 #[test]
@@ -215,7 +215,7 @@ fn pause_and_seek_achieves_stop() {
     engine.seek(0.0).unwrap();
 
     // Then state is Paused and position is 0.
-    assert_eq!(engine.state(), PlaybackState::Paused);
+    assert_eq!(engine.state(), AudioPlaybackState::Paused);
     assert_eq!(engine.position(), 0.0);
 }
 

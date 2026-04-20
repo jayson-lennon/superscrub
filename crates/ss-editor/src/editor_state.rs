@@ -5,7 +5,19 @@
 
 use std::path::PathBuf;
 
+use tracing::debug;
+
 use ss_core::project::Project;
+
+/// Whether the editor playhead is advancing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TransportState {
+    /// Playhead is paused.
+    #[default]
+    Paused,
+    /// Playhead is advancing.
+    Playing,
+}
 
 /// The current state of the editor.
 ///
@@ -19,8 +31,8 @@ pub struct EditorState {
     project_file: Option<PathBuf>,
     /// Current playback position in seconds.
     current_time: f64,
-    /// Whether the editor is in playback mode.
-    playing: bool,
+    /// Transport state (playing or paused).
+    transport: TransportState,
 }
 
 impl Default for EditorState {
@@ -29,7 +41,7 @@ impl Default for EditorState {
             project: None,
             project_file: None,
             current_time: 0.0,
-            playing: false,
+            transport: TransportState::default(),
         }
     }
 }
@@ -47,7 +59,8 @@ impl EditorState {
         self.project = Some(project);
         self.project_file = Some(path);
         self.current_time = 0.0;
-        self.playing = false;
+        self.transport = TransportState::Paused;
+        debug!("project loaded");
     }
 
     /// Whether a project is currently loaded.
@@ -107,25 +120,32 @@ impl EditorState {
 
     /// Whether the editor is currently playing.
     pub fn is_playing(&self) -> bool {
-        self.playing
+        matches!(self.transport, TransportState::Playing)
     }
 
     /// Start playback.
     pub fn start_playback(&mut self) {
         if self.project.is_some() {
-            self.playing = true;
+            self.transport = TransportState::Playing;
+            debug!("transport state changed: {:?}", self.transport);
         }
     }
 
     /// Stop playback (pause). Position is retained.
     pub fn stop_playback(&mut self) {
-        self.playing = false;
+        self.transport = TransportState::Paused;
     }
 
     /// Stop playback and reset position to 0.
     pub fn stop_and_reset(&mut self) {
-        self.playing = false;
+        self.transport = TransportState::Paused;
         self.current_time = 0.0;
+        debug!("transport state changed: {:?}", self.transport);
+    }
+
+    /// The current transport state.
+    pub fn transport_state(&self) -> TransportState {
+        self.transport
     }
 
     /// The project's frames per second (0 if no project).

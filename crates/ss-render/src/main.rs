@@ -39,6 +39,7 @@ struct Cli {
 }
 
 fn main() {
+    tracing_subscriber::fmt().init();
     if let Err(e) = run() {
         eprintln!("Error: {e:?}");
         std::process::exit(1);

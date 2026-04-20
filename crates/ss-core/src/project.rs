@@ -4,6 +4,8 @@
 //! that make up a video. Projects are serialized as JSON and loaded by
 //! the editor or headless renderer.
 
+pub mod loader;
+
 use crate::clip::ClipDef;
 
 /// Video encoding configuration for the output file.

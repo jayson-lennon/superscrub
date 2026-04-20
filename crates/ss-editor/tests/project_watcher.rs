@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use error_stack::Report;
-use ss_core::errors::ConfigWatchError;
-use ss_core::traits::ConfigWatcher;
+use ss_core::ConfigWatchError;
+use ss_core::ConfigWatcher;
 use ss_editor::ProjectWatcher;
 
 /// A fake config watcher that tracks whether `has_changed` returns true.

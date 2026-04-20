@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use ss_audio::{AudioEngineService, FakeAudioEngine, PlaybackState};
+use ss_audio::{AudioEngineService, AudioPlaybackState, FakeAudioEngine};
 use ss_preview::{FakePreviewCache, PreviewCacheService};
 
 mod test_utils;
@@ -77,7 +77,7 @@ fn audio_service_state_delegates() {
     let fake = Arc::new(FakeAudioEngine::new());
     let service = AudioEngineService::new(fake);
 
-    assert_eq!(service.state(), PlaybackState::Paused);
+    assert_eq!(service.state(), AudioPlaybackState::Paused);
 }
 
 // --- PreviewCacheService delegation ---

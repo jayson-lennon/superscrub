@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 
 use eframe::egui;
+use error_stack::ResultExt;
 
 use crate::app_config::AppConfig;
 use crate::playback_controller::PlaybackController;
@@ -52,13 +53,12 @@ impl EditorApp {
         config: AppConfig,
         project_path: PathBuf,
     ) -> Result<Self, error_stack::Report<crate::app_config::AppConfigError>> {
-        let project_json = std::fs::read_to_string(&project_path).map_err(|e| {
-            error_stack::Report::new(crate::app_config::AppConfigError).attach(e.to_string())
-        })?;
-        let project: ss_core::project::Project =
-            serde_json::from_str(&project_json).map_err(|e| {
-                error_stack::Report::new(crate::app_config::AppConfigError).attach(e.to_string())
-            })?;
+        let project_json = std::fs::read_to_string(&project_path)
+            .change_context(crate::app_config::AppConfigError)
+            .attach("failed to read project file")?;
+        let project: ss_core::project::Project = serde_json::from_str(&project_json)
+            .change_context(crate::app_config::AppConfigError)
+            .attach("failed to parse project JSON")?;
 
         let preview_fps = config.preview_fps;
         let preview_res = config.preview_resolution(project.resolution);
@@ -131,16 +131,11 @@ impl eframe::App for EditorApp {
 
         // 3. Layout: bottom transport, then timeline, then right settings, then central viewport.
         egui::TopBottomPanel::bottom("transport").show(ctx, |ui| {
-            let state = self.controller.state().is_playing();
-            let playback = if state {
-                ss_audio::PlaybackState::Playing
-            } else {
-                ss_audio::PlaybackState::Paused
-            };
+            let transport = self.controller.state().transport_state();
             let current_time = self.controller.state().current_time();
             let duration = self.controller.state().duration();
 
-            let actions = self.transport.show(ui, playback, current_time, duration);
+            let actions = self.transport.show(ui, transport, current_time, duration);
             for action in actions {
                 match action {
                     TransportAction::TogglePlayback => self.controller.toggle_playback(),

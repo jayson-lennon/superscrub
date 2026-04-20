@@ -6,8 +6,12 @@
 use std::path::{Path, PathBuf};
 
 use error_stack::Report;
+use tracing::debug;
 
-use crate::errors::PathResolveError;
+/// Failed to resolve a file path.
+#[derive(Debug, wherror::Error)]
+#[error("failed to resolve path")]
+pub struct PathResolveError;
 
 /// Resolve a path relative to the project file's parent directory.
 ///
@@ -18,6 +22,7 @@ use crate::errors::PathResolveError;
 ///
 /// Returns an error if the project file has no parent directory.
 pub fn resolve_path(project_file: &Path, path: &str) -> Result<PathBuf, Report<PathResolveError>> {
+    debug!("resolving path: {}", path);
     let path = Path::new(path);
 
     if path.is_absolute() {

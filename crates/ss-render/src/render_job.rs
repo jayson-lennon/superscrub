@@ -1,7 +1,7 @@
 //! Render orchestration: iterates frames, renders via compositor, encodes, tracks progress.
 //!
 //! [`RenderJob`] is the core render loop. It is decoupled from ffmpeg specifics
-//! via the [`FrameEncoder`](crate::encoder::FrameEncoder) trait, allowing
+//! via the [`FrameEncoder`] trait, allowing
 //! testing with [`FakeFrameEncoder`](crate::fake_encoder::FakeFrameEncoder).
 
 use std::path::Path;
@@ -11,6 +11,7 @@ use ss_compositor::FrameRendererService;
 use ss_compositor::Viewport;
 use ss_core::project::Project;
 use ss_preview::frame_index_to_time;
+use tracing::{debug, info};
 
 use crate::encoder::FrameEncoder;
 use crate::progress::{ProgressTracker, RenderPhase};
@@ -72,6 +73,11 @@ impl RenderJob {
 
         progress_tracker.set_phase(RenderPhase::Rendering);
 
+        info!(
+            "render started: frames={}, range=({:?}, {:?})",
+            total, start_time, end_time
+        );
+
         for i in 0..total {
             // Check cancellation between frames.
             if let Ok(Some(())) = cancel_receiver.try_recv() {
@@ -93,12 +99,17 @@ impl RenderJob {
                 .attach(format!("frame {}/{}", i + 1, total))?;
 
             progress_tracker.update(i + 1, time);
+            if (i + 1) % 10 == 0 {
+                debug!("render progress: frame={}/{}", i + 1, total);
+            }
         }
 
         encoder
             .finish()
             .change_context(RenderError)
             .attach("finalizing encoder")?;
+
+        info!("render completed");
 
         Ok(())
     }

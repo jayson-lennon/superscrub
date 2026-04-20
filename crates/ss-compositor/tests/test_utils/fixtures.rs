@@ -3,32 +3,13 @@
 use std::sync::Arc;
 
 use ss_compositor::{CompositorRenderer, FakeImageProvider, FrameRenderer, Viewport};
-use ss_core::animation::{Easing, Keyframe};
-use ss_core::clip::{ClipDef, ClipType, Sizing};
 use ss_core::project::{EncodingConfig, Project};
 
 /// The project file path used in tests. Images resolve relative to this.
 pub const PROJECT_FILE: &str = "/test/project.json";
 
-/// Build a minimal image clip with sensible defaults.
-pub fn build_image_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> ClipDef {
-    ClipDef {
-        id: id.to_string(),
-        clip_type: ClipType::Image {
-            path: path.to_string(),
-        },
-        track: 0,
-        start_time,
-        end_time,
-        z_index: 0,
-        sizing: Sizing::default(),
-        pivot: [0.5, 0.5],
-        animations: vec![],
-    }
-}
-
 /// Build a project with the given clips and default settings.
-pub fn build_project(clips: Vec<ClipDef>) -> Project {
+pub fn build_project(clips: Vec<ss_core::clip::ClipDef>) -> Project {
     Project {
         resolution: [100, 100],
         fps: 30,
@@ -38,15 +19,6 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
         audio: None,
         encoding: EncodingConfig::default(),
         clips,
-    }
-}
-
-/// Build a keyframe at the given time and value with linear easing.
-pub fn kf(time: f64, value: f32) -> Keyframe {
-    Keyframe {
-        time,
-        value,
-        easing: Easing::Linear,
     }
 }
 
