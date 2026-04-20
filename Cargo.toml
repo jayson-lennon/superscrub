@@ -23,7 +23,7 @@ kanal = "0.1"
 parking_lot = "0.12"
 tempfile = "3"
 
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 collapsible_if = "allow"
 default_constructed_unit_structs = "allow"
