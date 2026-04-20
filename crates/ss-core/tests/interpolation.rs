@@ -17,11 +17,7 @@ use test_utils::fixtures::{kf, kf_with_easing};
 #[case::linear_end(1.0, Easing::Linear, 1.0)]
 #[case::sine_in_out_start(0.0, Easing::SineInOut, 0.0)]
 #[case::sine_in_out_end(1.0, Easing::SineInOut, 1.0)]
-fn easing_returns_correct_endpoints(
-    #[case] t: f32,
-    #[case] easing: Easing,
-    #[case] expected: f32,
-) {
+fn easing_returns_correct_endpoints(#[case] t: f32, #[case] easing: Easing, #[case] expected: f32) {
     // Given a normalized progress value and an easing curve.
     // When applying the easing.
     let result = apply_easing(t, easing);
@@ -182,14 +178,20 @@ fn interpolate_empty_keyframes_returns_error() {
 #[test]
 fn sine_in_out_differs_from_linear_at_quarter_point() {
     // Given two keyframes with SineInOut easing.
-    let keyframes = vec![kf_with_easing(0.0, 0.0, Easing::Linear), kf_with_easing(10.0, 100.0, Easing::SineInOut)];
+    let keyframes = vec![
+        kf_with_easing(0.0, 0.0, Easing::Linear),
+        kf_with_easing(10.0, 100.0, Easing::SineInOut),
+    ];
 
     // When interpolating at t=2.5 (quarter point).
     let result = interpolate_keyframes(&keyframes, 2.5).unwrap();
 
     // Then the result differs from a simple linear interpolation (25.0).
     // SineInOut should be slower at the start.
-    assert!(result < 25.0, "SineInOut at quarter should be less than linear, got {result}");
+    assert!(
+        result < 25.0,
+        "SineInOut at quarter should be less than linear, got {result}"
+    );
 }
 
 #[test]
@@ -261,5 +263,8 @@ fn sine_in_out_stays_bounded(#[case] t: f32) {
     let result = apply_easing(t, Easing::SineInOut);
 
     // Then the result stays within [0, 1].
-    assert!(result >= 0.0 && result <= 1.0, "result {result} is out of bounds");
+    assert!(
+        result >= 0.0 && result <= 1.0,
+        "result {result} is out of bounds"
+    );
 }

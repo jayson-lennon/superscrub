@@ -134,7 +134,10 @@ fn clip_with_sine_in_out_easing_differs_from_linear() {
     let sine_clip = build_clip_with_animation(
         "sine",
         AnimatableProperty::TranslateX,
-        vec![kf_with_easing(0.0, 0.0, Easing::Linear), kf_with_easing(10.0, 100.0, Easing::SineInOut)],
+        vec![
+            kf_with_easing(0.0, 0.0, Easing::Linear),
+            kf_with_easing(10.0, 100.0, Easing::SineInOut),
+        ],
     );
 
     // When resolving both at t=2.5 (quarter point).

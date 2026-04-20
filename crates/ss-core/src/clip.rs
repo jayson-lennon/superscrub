@@ -63,9 +63,21 @@ pub enum Sizing {
         w: u32,
         h: u32,
         mode: FitMode,
+        #[serde(default)]
+        anchor: FitAnchor,
     },
     /// Scale by a uniform factor.
     Scale(f32),
+}
+
+/// How a fitted image is anchored within its rect.
+/// Used by FitRect to determine where to crop/position.
+#[derive(Debug, Clone, PartialEq, Default, serde::Deserialize, serde::Serialize)]
+pub enum FitAnchor {
+    /// Center the image within the rect.
+    #[default]
+    Center,
+    // Future: TopLeft, TopCenter, TopRight, etc.
 }
 
 /// How an image fits within a rectangle.

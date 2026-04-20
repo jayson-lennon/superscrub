@@ -39,9 +39,11 @@ fn parse_example_project() {
     assert_eq!(clip.z_index, 0);
 
     // Check sizing.
-    assert!(matches!(&clip.sizing, Sizing::FitRect { x, y, w, h, mode }
-        if *x == 0 && *y == 0 && *w == 1920 && *h == 1080 && matches!(mode, FitMode::Cover)
-    ));
+    assert!(
+        matches!(&clip.sizing, Sizing::FitRect { x, y, w, h, mode, anchor: _ }
+            if *x == 0 && *y == 0 && *w == 1920 && *h == 1080 && matches!(mode, FitMode::Cover)
+        )
+    );
 
     // Check animations.
     assert_eq!(clip.animations.len(), 4);
@@ -263,7 +265,9 @@ fn parse_sizing_explicit() {
     let project: Project = serde_json::from_str(json).expect("should parse");
 
     // Then the sizing is Explicit with the correct dimensions.
-    assert!(matches!(&project.clips[0].sizing, Sizing::Explicit { width, height } if *width == 800 && *height == 600));
+    assert!(
+        matches!(&project.clips[0].sizing, Sizing::Explicit { width, height } if *width == 800 && *height == 600)
+    );
 }
 
 #[test]
@@ -299,9 +303,11 @@ fn parse_sizing_fit_rect_contain() {
     let project: Project = serde_json::from_str(json).expect("should parse");
 
     // Then the sizing is FitRect with Contain mode.
-    assert!(matches!(&project.clips[0].sizing, Sizing::FitRect { x, y, w, h, mode }
-        if *x == 100 && *y == 50 && *w == 640 && *h == 480 && matches!(mode, FitMode::Contain)
-    ));
+    assert!(
+        matches!(&project.clips[0].sizing, Sizing::FitRect { x, y, w, h, mode, anchor: _ }
+            if *x == 100 && *y == 50 && *w == 640 && *h == 480 && matches!(mode, FitMode::Contain)
+        )
+    );
 }
 
 #[test]

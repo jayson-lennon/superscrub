@@ -9,3 +9,6 @@ euclid = "0.22"
 wherror = "2"
 error-stack = "0.7"
 rstest = "0.25"
+image = "0.25"
+imageproc = "0.25"
+derive_more = { version = "2", features = ["debug"] }

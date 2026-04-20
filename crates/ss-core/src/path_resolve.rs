@@ -17,22 +17,16 @@ use crate::errors::PathResolveError;
 /// # Errors
 ///
 /// Returns an error if the project file has no parent directory.
-pub fn resolve_path(
-    project_file: &Path,
-    path: &str,
-) -> Result<PathBuf, Report<PathResolveError>> {
+pub fn resolve_path(project_file: &Path, path: &str) -> Result<PathBuf, Report<PathResolveError>> {
     let path = Path::new(path);
 
     if path.is_absolute() {
         return Ok(path.to_path_buf());
     }
 
-    let parent = project_file
-        .parent()
-        .ok_or_else(|| {
-            Report::new(PathResolveError)
-                .attach("project file has no parent directory")
-        })?;
+    let parent = project_file.parent().ok_or_else(|| {
+        Report::new(PathResolveError).attach("project file has no parent directory")
+    })?;
 
     Ok(parent.join(path))
 }

@@ -33,8 +33,7 @@ pub fn interpolate_keyframes(
     time: f64,
 ) -> Result<f32, error_stack::Report<InterpolationError>> {
     if keyframes.is_empty() {
-        return Err(error_stack::Report::new(InterpolationError)
-            .attach("keyframes list is empty"));
+        return Err(error_stack::Report::new(InterpolationError).attach("keyframes list is empty"));
     }
 
     // Before or at first keyframe: hold first value.

@@ -8,6 +8,20 @@ ss-core = { path = "../ss-core" }
 euclid = { workspace = true }
 wherror = { workspace = true }
 error-stack = { workspace = true }
+image = { workspace = true }
+imageproc = { workspace = true }
+derive_more = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+tempfile = "3"
+
+[[bin]]
+name = "ss-compositor"
+path = "src/main.rs"
+
+[[bin]]
+name = "gen-test-images"
+path = "src/bin/gen_test_images.rs"

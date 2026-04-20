@@ -20,14 +20,14 @@ pub mod errors;
 pub mod interpolation;
 pub mod path_resolve;
 pub mod project;
-pub mod transform;
 pub mod traits;
+pub mod transform;
 
 pub use animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
-pub use clip::{ClipDef, ClipType, FitMode, Sizing};
+pub use clip::{ClipDef, ClipType, FitAnchor, FitMode, Sizing};
 pub use errors::{ConfigWatchError, InterpolationError, PathResolveError, ProjectLoadError};
 pub use interpolation::{apply_easing, interpolate_keyframes, resolve_clip};
 pub use path_resolve::resolve_path;
 pub use project::{AudioConfig, Project};
-pub use transform::ResolvedClip;
 pub use traits::{ConfigWatcher, ProjectLoader};
+pub use transform::ResolvedClip;

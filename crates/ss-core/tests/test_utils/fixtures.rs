@@ -5,12 +5,7 @@ use ss_core::clip::{ClipDef, ClipType, Sizing};
 use ss_core::project::{AudioConfig, Project};
 
 /// Build a minimal image clip with sensible defaults.
-pub fn build_image_clip(
-    id: &str,
-    path: &str,
-    start_time: f64,
-    end_time: f64,
-) -> ClipDef {
+pub fn build_image_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> ClipDef {
     ClipDef {
         id: id.to_string(),
         clip_type: ClipType::Image {
@@ -47,6 +42,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
         fps: 60,
         duration: 30.0,
         output: "output.mp4".to_string(),
+        background: [0x2c, 0x2e, 0x34, 0xff],
         audio: Some(AudioConfig {
             path: "assets/song.mp3".to_string(),
             start_time: 0.0,

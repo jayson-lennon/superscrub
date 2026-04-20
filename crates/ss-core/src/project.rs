@@ -21,10 +21,17 @@ pub struct Project {
     pub duration: f64,
     /// Output file path.
     pub output: String,
+    /// Background color as [R, G, B, A], default #2c2e34 (opaque dark gray).
+    #[serde(default = "default_background")]
+    pub background: [u8; 4],
     /// Audio configuration, if any.
     pub audio: Option<AudioConfig>,
     /// All clips in the project.
     pub clips: Vec<ClipDef>,
+}
+
+fn default_background() -> [u8; 4] {
+    [0x2c, 0x2e, 0x34, 0xff]
 }
 
 /// Audio source configuration.

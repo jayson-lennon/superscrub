@@ -1,0 +1,7 @@
+# Generated test images and rendered frames.
+# Run `just test-frame` to regenerate.
+output/
+bg.png
+overlay.png
+accent.png
+title.png
