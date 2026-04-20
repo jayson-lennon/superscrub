@@ -12,3 +12,6 @@ rstest = "0.25"
 image = "0.25"
 imageproc = "0.25"
 derive_more = { version = "2", features = ["debug"] }
+rodio = "0.22"
+rayon = "1.10"
+ctrlc = "3"

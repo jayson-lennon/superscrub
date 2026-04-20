@@ -7,6 +7,13 @@ edition = "2024"
 ss-core = { path = "../ss-core" }
 wherror = { workspace = true }
 error-stack = { workspace = true }
+rodio = { workspace = true }
+derive_more = { workspace = true }
+ctrlc = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+
+[[bin]]
+name = "ss-audio"
+path = "src/main.rs"

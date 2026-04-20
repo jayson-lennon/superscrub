@@ -5,8 +5,12 @@ edition = "2024"
 
 [dependencies]
 ss-core = { path = "../ss-core" }
+ss-compositor = { path = "../ss-compositor" }
 wherror = { workspace = true }
 error-stack = { workspace = true }
+rayon = { workspace = true }
+image = { workspace = true }
+derive_more = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

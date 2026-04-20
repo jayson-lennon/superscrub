@@ -1,0 +1,111 @@
+//! Integration tests for BackgroundPreviewCache.
+//!
+//! Uses `CompositorRenderer` with `FakeImageProvider` to verify
+//! that frames are actually rendered and stored.
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use ss_compositor::{CompositorRenderer, FakeImageProvider};
+use ss_core::clip::{ClipDef, ClipType, Sizing};
+use ss_core::project::Project;
+use ss_preview::{BackgroundPreviewCache, PreviewCache};
+
+fn minimal_project() -> Project {
+    Project {
+        resolution: [100, 100],
+        fps: 10,
+        duration: 1.0,
+        output: "out.mp4".into(),
+        background: [0, 0, 0, 255],
+        audio: None,
+        clips: vec![ClipDef {
+            id: "test".into(),
+            clip_type: ClipType::Image {
+                path: "test.png".into(),
+            },
+            track: 0,
+            start_time: 0.0,
+            end_time: 1.0,
+            z_index: 0,
+            sizing: Sizing::Natural,
+            pivot: [0.5, 0.5],
+            animations: vec![],
+        }],
+    }
+}
+
+fn create_cache() -> Arc<BackgroundPreviewCache> {
+    let mut provider = FakeImageProvider::new();
+    provider.insert_solid("test.png", 50, 50, [255, 0, 0, 255]);
+    let renderer = Arc::new(CompositorRenderer::new(Arc::new(provider)));
+    Arc::new(BackgroundPreviewCache::new(renderer))
+}
+
+#[test]
+fn background_cache_renders_frames() {
+    // Given a cache with a minimal project.
+    let cache = create_cache();
+    let project = minimal_project();
+
+    // When starting a render at 10fps, 100x100.
+    cache
+        .start_render(project, "project.json".into(), (100, 100), 10)
+        .unwrap();
+
+    // Then wait for completion and verify frame 0 exists.
+    let mut waited = 0;
+    while !cache.progress().is_complete() && waited < 100 {
+        std::thread::sleep(Duration::from_millis(50));
+        waited += 1;
+    }
+
+    let frame = cache.get_frame(0);
+    assert!(frame.is_some());
+    let frame = frame.unwrap();
+    assert_eq!(frame.width(), 100);
+    assert_eq!(frame.height(), 100);
+}
+
+#[test]
+fn background_cache_cancels_previous_render() {
+    // Given a cache with a render in progress.
+    let cache = create_cache();
+    let project = minimal_project();
+    cache
+        .start_render(project.clone(), "project.json".into(), (100, 100), 10)
+        .unwrap();
+
+    // When starting a second render.
+    cache
+        .start_render(project, "project.json".into(), (50, 50), 10)
+        .unwrap();
+
+    // Then wait for the second render to complete and verify dimensions.
+    let mut waited = 0;
+    while !cache.progress().is_complete() && waited < 100 {
+        std::thread::sleep(Duration::from_millis(50));
+        waited += 1;
+    }
+
+    let frame = cache.get_frame(0);
+    assert!(frame.is_some());
+    let frame = frame.unwrap();
+    assert_eq!(frame.width(), 50);
+    assert_eq!(frame.height(), 50);
+}
+
+#[test]
+fn get_frame_during_render_does_not_panic() {
+    // Given a cache.
+    let cache = create_cache();
+    let project = minimal_project();
+
+    // When starting a render and immediately getting frame 0.
+    cache
+        .start_render(project, "project.json".into(), (100, 100), 10)
+        .unwrap();
+
+    // Then get_frame does not panic (may return None or Some).
+    let _ = cache.get_frame(0);
+}
