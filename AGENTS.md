@@ -1,10 +1,17 @@
 # Style Guide
 
-This document defines the coding conventions and architectural patterns for the null-prophet codebase.
+This document defines the coding conventions and architectural patterns for the SuperScrub codebase.
 
 ## 1. Overview
 
-This style guide ensures consistent, maintainable Rust code across the codebase. It covers error handling, trait-based design, testing patterns, documentation standards, and module organization. Following these patterns enables dependency injection for testability and clear separation of concerns.
+SuperScrub is a programmatic video editor built in Rust with an egui-based GUI. The workspace is organized into six crates under `crates/`:
+
+- **ss-core** — Data model, project config parsing, animation interpolation. Pure data + algorithms, no I/O.
+- **ss-compositor** — Frame rendering (image loading, transforms, compositing).
+- **ss-audio** — Audio engine (playback, seek, pause via rodio).
+- **ss-preview** — Preview cache (pre-renders frames in background via rayon).
+- **ss-render** — Headless renderer (ffmpeg pipe, audio muxing, progress tracking).
+- **ss-editor** — egui application (viewport, timeline, transport controls, settings).
 
 ## 2. Core Patterns
 
@@ -12,381 +19,256 @@ This style guide ensures consistent, maintainable Rust code across the codebase.
 
 Use `wherror::Error` with `error_stack::Report` for all fallible operations.
 
-**Error type:**
-
 ```rust
 use wherror::Error;
 
 #[derive(Debug, Error)]
-#[error("failed to open editor")]
-pub struct ExternalEditorError;
+#[error("failed to load image")]
+pub struct ImageLoadError;
 ```
-
-**Result type pattern:**
 
 ```rust
 use error_stack::{Report, ResultExt};
 
-pub fn load() -> Result<Config, Report<ConfigError>> {
-    let content = std::fs::read_to_string(&path)
-        .change_context(ConfigError)
-        .attach("failed to read config file")?;
-    Ok(config)
+fn load(path: &Path) -> Result<RgbaImage, Report<ImageLoadError>> {
+    image::open(path)
+        .change_context(ImageLoadError)
+        .attach(format!("image path: {}", path.display()))?
 }
 ```
 
-**Document errors in functions:**
-
-```rust
-/// # Errors
-///
-/// Returns an error if the database connection fails.
-pub async fn new(db_path: &str) -> Result<Self, Report<SqliteNoteDbError>>
-```
-
-NEVER make `errors.rs` file. ALWAYS colocate the error types near relevant traits/methods that produce the error. Ideally in the same module or file.
+- Document errors with `# Errors` doc sections on all fallible public functions.
+- NEVER make an `errors.rs` file. ALWAYS colocate error types near the trait or function that produces them.
+- NEVER make a `traits.rs` file. Use separate modules for each trait and its implementations.
 
 ### Trait Usage
 
-Every external dependency or service must have a trait abstraction.
-
-**Backend trait pattern:**
+Every external dependency or service must have a trait abstraction. All traits must be `Send + Sync` and include a `name(&self) -> &'static str` method for debugging.
 
 ```rust
-use async_trait::async_trait;
-
-#[async_trait]
-pub trait PlaylistStorage: Send + Sync {
+pub trait AudioEngine: Send + Sync {
     fn name(&self) -> &'static str;
-    async fn load(&self, dir: &CanonicalPath) -> Result<PlaylistData, Report<IoError>>;
+    fn load(&self, path: &Path) -> Result<(), Report<AudioError>>;
+    fn play(&self) -> Result<(), Report<AudioError>>;
 }
 ```
 
-**Service wrapper pattern:**
+**Service wrapper pattern** — wrap `Arc<dyn Trait>` in a typed service struct:
 
 ```rust
 use std::sync::Arc;
 use derive_more::Debug;
 
 #[derive(Debug, Clone)]
-pub struct MpvClientService {
-    #[debug("backend<{}>", self.backend.name())]
-    backend: Arc<dyn MpvClient>,
+pub struct AudioEngineService {
+    #[debug("AudioEngine<{}>", self.backend.name())]
+    svc: Arc<dyn AudioEngine>,
 }
 
-impl MpvClientService {
-    pub fn new(backend: Arc<dyn MpvClient>) -> Self {
-        Self { backend }
+impl AudioEngineService {
+    pub fn new(svc: Arc<dyn AudioEngine>) -> Self {
+        Self { svc }
     }
 }
 ```
 
-**Key trait design rules:**
-
-- All traits must be `Send + Sync` for thread safety
-- Use `#[async_trait]` for async methods
-- Include a `name(&self) -> &'static str` method for debugging
-- Service structs wrap `Arc<dyn Trait>` for shared ownership
+Import `derive_more::Debug` in the module, then use `#[debug(...)]` on fields that can't automatically derive `Debug`.
 
 ### Module Structure
 
-**Workspace organization:**
+Each crate uses a flat module layout under `src/`. A typical service crate looks like:
 
 ```
-Cargo.toml          # Workspace with members = ["crates/*", "tests/*"]
-crates/
-  null-prophet/        # Main crate
-    src/
-      lib.rs        # Module declarations and re-exports
-      feat/         # Feature modules (domain logic)
-      services.rs   # Service container
-      system_ctx.rs # Application context
-tests/
-  acceptance/       # Cucumber acceptance tests
+src/
+  lib.rs          # Module declarations and re-exports
+  engine.rs       # Trait + error (parent module, declares submodules)
+  engine/
+    service.rs    # Service wrapper
+    rodio.rs      # Real implementation
+    fake.rs       # Test fake
 ```
 
-**Feature module pattern (`feat/`):**
-
-```rust
-// feat/playlist/mod.rs
-pub mod storage;  // Submodule with implementations
-
-pub use storage::{PlaylistStorage, PlaylistStorageService};
-
-#[async_trait]
-pub trait PlaylistStorage: Send + Sync { ... }
-
-pub struct PlaylistStorageService { ... }
-```
-
-**Submodule with implementations:**
-
-```
-feat/playlist/storage/
-├── mod.rs      # Re-exports
-├── sqlite.rs   # Real implementation
-└── fake.rs     # Test fake
-```
+Trait + error live in the parent `.rs` file. Real impl, fake, and service each get their own file in the subdirectory.
 
 ### Dependency Injection
 
-**Services container (shared with any parts of the application):**
+The `ss-editor` crate wires all services together in a `Services` container. Application code depends on this container, not on concrete backends.
 
 ```rust
 #[derive(Debug, Clone)]
 pub struct Services {
-    pub chat: ChatService,
-    pub rt: tokio::runtime::Handle,
-    // more fields as needed.
+    pub audio: AudioEngineService,
+    pub preview: PreviewCacheService,
+    pub renderer: FrameRendererService,
 }
 ```
 
-**System context:**
+Each field must be a dedicated struct or facade that wraps `Arc` internally (or is trivially copied). Never expose raw `Arc<dyn Trait>` as a field — wrap it in a typed service struct. The `Services` struct is shared between threads and tasks.
 
 ```rust
-#[derive(Debug, Clone)]
-pub struct SystemCtx {
-    pub services: Services,
-    pub config: Config,
-    pub keymap: Keymap,
+// DO NOT
+pub struct Services {
+    pub audio: Arc<dyn AudioEngine>,  // raw trait object
+}
+
+// DO
+pub struct Services {
+    pub audio: AudioEngineService,   // dedicated struct, Arc is internal
 }
 ```
+
+Library crates (ss-compositor, ss-audio, ss-preview) expose their own service wrapper but do not have a `Services` container — they get wired into the editor at the application layer.
 
 ## 3. Data Flow
 
-Command → SystemCtx → Services → Backend Trait → Implementation
+The editor flow: `EditorApp` (egui) → `Services` → service wrappers → trait backends.
 
-1. User action creates a `Command` enum variant
-2. `execute(ctx, command)` dispatches to domain logic
-3. Domain logic accesses services via `ctx.services`
-4. Services delegate to trait backends (real or fake)
+The render flow: `RenderJob` orchestrates `FrameRendererService` + `FrameEncoder` to produce video output.
 
 ## 4. Tests
 
-Important:
-
-- Tests should only verify _observable behavior_
-- Testing internal details is an _anti-pattern_.
-- Prefer testing observable behavior ONLY. If observable behavior cannot be tested, then an abstraction needs to be created. Ask the user how to proceed in this case.
+- Tests should only verify **observable behavior**. Testing internal details is an anti-pattern.
+- If observable behavior cannot be tested, an abstraction needs to be created. Ask the user how to proceed in this case.
 
 ### BDD-Style Tests (Given/When/Then)
 
-Structure tests with clear Given/When/Then sections:
+Structure tests with clear Given/When/Then comments. Each section should contain actual code — do not bury test inputs inside the comment:
 
 ```rust
-fn pop_returns_none_when_stack_empty() {
-    // Given an empty stack.
-    let mut stack = Stack::default();
-
-    // When popping from the stack.
-    let item = stack.pop();
-
-    // Then we get nothing back.
-    assert!(item.is_none());
+// DO NOT — inputs are only in the comment, not in code
+fn time_to_frame_index_at_one_second() {
+    // Given time=1.0, fps=30, dur=10.0.
+    // When converting to frame index.
+    // Then the result is 30.
+    assert_eq!(time_to_frame_index(1.0, 30, 10.0), Some(30));
 }
 ```
 
-**Example with service:**
+```rust
+// DO — each section has a corresponding code line
+fn time_to_frame_index_at_one_second() {
+    // Given time=1.0, fps=30, dur=10.0.
+    let (time, fps, dur) = (1.0, 30, 10.0);
+
+    // When converting to frame index.
+    let result = time_to_frame_index(time, fps, dur);
+
+    // Then the result is 30.
+    assert_eq!(result, Some(30));
+}
+```
+
+Do not test default values — that is testing the struct definition, not behavior:
 
 ```rust
-fn service_delegates_to_backend() {
-    // Given a service with a fake backend.
-    let fake = Arc::new(FakeBackend::new());
-    let service = MyService::new(fake.clone());
+// DO NOT — testing default values is irrelevant
+fn default_window_size() {
+    let config = AppConfig::default();
+    assert_eq!(config.window_size, [1280, 720]);
+}
+```
 
-    // When calling the service method.
-    let result = service.do_thing();
+```rust
+// DO NOT — no BDD structure, inputs not separated from assertion
+fn preview_resolution_full_res() {
+    let mut config = AppConfig::default();
+    config.preview_divisor = 1;
+    let res = config.preview_resolution([1920, 1080]);
+    assert_eq!(res, (1920, 1080));
+}
+```
 
-    // Then the backend was called and result is successful.
-    assert!(result.is_ok());
-    assert_eq!(fake.call_count.load(Ordering::SeqCst), 1);
+```rust
+// DO — tests meaningful behavior with proper BDD structure
+fn preview_resolution_correctly_calculates_with_divisor_of_one() {
+    // Given a configuration having a preview_divisor of 1.
+    let mut config = AppConfig::default();
+    config.preview_divisor = 1;
+
+    // When we calculate the preview resolution.
+    let res = config.preview_resolution([1920, 1080]);
+
+    // Then the resolution is the same.
+    assert_eq!(res, (1920, 1080));
 }
 ```
 
 ### Parameterized Tests with rstest
 
+Use `rstest` as-needed for parameterized tests:
+
 ```rust
 #[rstest::rstest]
-#[case(Key::Tab, "Tab")]
-#[case(Key::Enter, "Enter")]
-fn key_display(#[case] key: Key, #[case] expected: &str) {
-    // Given / When / Then inline for simple cases
-    assert_eq!(key.display(), expected);
-}
-```
-
-### Async Tests
-
-```rust
-#[tokio::test]
-async fn storage_loads_data() {
-    // Given a storage service with fake backend.
-    let storage = PlaylistStorageService::new(Arc::new(FakeStorageBackend::new()));
-
-    // When loading data.
-    let result = storage.load(&path).await;
-
-    // Then the operation succeeds.
-    assert!(result.is_ok());
+#[case(Easing::Linear, 0.0, 0.0)]
+#[case(Easing::Linear, 1.0, 1.0)]
+fn apply_easing_linear(#[case] easing: Easing, #[case] t: f64, #[case] expected: f64) {
+    assert_eq!(apply_easing(easing, t), expected);
 }
 ```
 
 ### Test Utilities
 
-**test_utils module structure:**
+Integration tests live in `tests/` with a `test_utils/` subdirectory:
 
-```rust
-// test_utils/mod.rs
-pub mod context;
-pub mod fakes;
-pub mod fixtures;
-pub mod services;
-
-pub use context::NoteTestContext;
-pub use fakes::FakeMpvBackend;
-pub use services::create_test_services;
 ```
-
-**Test context pattern:**
-
-```rust
-pub struct NoteTestContext {
-    pub ctx: SystemCtx,
-    pub temp_file: NamedTempFile,
-}
-
-impl NoteTestContext {
-    pub async fn new() -> Self {
-        let services = create_test_services().await;
-        let ctx = SystemCtx { services, ... };
-        Self { ctx, temp_file }
-    }
-}
-```
-
-**Test services factory:**
-
-```rust
-pub async fn create_test_services() -> Services {
-    let db = Arc::new(SqliteNoteDb::new("sqlite::memory:").await.unwrap());
-    Services {
-        mpv: MpvClientService::new(Arc::new(FakeMpvBackend)),
-        media: MediaQueryService::new(Arc::new(FakeMediaBackend)),
-        // ... all services with fakes
-    }
-}
+tests/
+  playback_controller.rs
+  services.rs
+  test_utils/
+    mod.rs        # Re-exports
+    fakes.rs      # Fake implementations shared across tests
+    fixtures.rs   # Builder helpers for constructing test data
 ```
 
 ### Fake Implementations
 
-**Simple fake:**
+Fakes colocate with the trait they implement (in the library crate). Use atomic counters for call tracking and `Mutex` for stateful behavior:
 
 ```rust
-pub struct FakeMpvBackend;
+pub struct FakeAudioEngine {
+    pub load_count: AtomicUsize,
+    pub play_count: AtomicUsize,
+    state: Mutex<FakeState>,
+}
 
-impl MpvClient for FakeMpvBackend {
+impl AudioEngine for FakeAudioEngine {
     fn name(&self) -> &'static str { "fake" }
-    fn load_file(&self, _path: &Path) -> Result<(), Report<MpvError>> {
+
+    fn load(&self, path: &Path) -> Result<(), Report<AudioError>> {
+        self.load_count.fetch_add(1, Ordering::SeqCst);
         Ok(())
-    }
-}
-```
-
-**Stateful fake with call tracking:**
-
-```rust
-pub struct FakeStorageBackend {
-    data: Arc<RwLock<StorageData>>,
-    pub load_called: AtomicUsize,
-}
-
-impl FakeStorageBackend {
-    pub fn new() -> Self {
-        Self {
-            data: Arc::new(RwLock::new(StorageData::default())),
-            load_called: AtomicUsize::new(0),
-        }
-    }
-}
-
-impl PlaylistStorage for FakeStorageBackend {
-    async fn load(&self, _dir: &CanonicalPath) -> Result<PlaylistData, Report<IoError>> {
-        self.load_called.fetch_add(1, Ordering::SeqCst);
-        Ok(self.data.read().await.clone())
     }
 }
 ```
 
 ## 5. Documentation
 
-### Module-Level Documentation
+- Module-level `//!` docs on every module.
+- `///` doc comments on all public types and functions.
+- `# Errors` sections on all fallible public functions.
 
-```rust
-//! Playlist storage and management.
-//!
-//! This module handles persisting and loading playlist data.
-//!
-//! # Notes vs Aliases
-//!
-//! - **Notes**: Searchable metadata attached to files.
-//! - **Aliases**: Display names shown in the TUI.
-```
-
-### Type Documentation
-
-```rust
-/// A path to a media item, either local file or URL.
-///
-/// This enum distinguishes between local filesystem paths and web resources,
-/// allowing uniform handling while maintaining type safety.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ItemPath {
-    /// A local file path wrapped in [`CanonicalPath`].
-    File(CanonicalPath),
-    /// A URL string pointing to a web resource.
-    Url(String),
-}
-```
-
-### Service Documentation
-
-```rust
-/// Container for all injectable service dependencies.
-///
-/// Holds references to all services, enabling dependency injection
-/// and making it easy to swap implementations for testing.
-#[derive(Debug, Clone)]
-pub struct Services { ... }
-```
-
-## 6. Related Contexts
-
-Search for potentially related context files in `.context/` based on the user's request. For example:
-
-- CLI changes → `.context/cli.md`
-- TUI changes → `.context/tui.md`
-- Business logic → `.context/business-rules.md`
-- Service changes → `.context/services.md`
-- New features → Multiple contexts may be relevant
-
-## 7. Modification Guide
+## 6. Modification Guide
 
 When implementing features:
 
-1. **Read context files** - Read the `.context/` directory for context files related to the request. If found, load it completely into context.
-2. **Search for related patterns** - Find similar features in `feat/` directory
-3. **Identify impacted types** - Check if new traits, services, or commands needed
-4. **Create trait first** - Define the abstraction before implementation
-5. **Implement real and fake** - Both must satisfy the trait
-6. **Wire into Services** - Add to `Services` struct and `create_test_services()`
-7. **Write tests** - Use Given/When/Then structure with test context and fakes
-8. **Add documentation** - Module docs, type docs, error docs
+1. **Find related patterns** — Look at existing modules in the relevant crate for similar features.
+2. **Create trait first** — Define the abstraction in its own module before implementing.
+3. **Implement real and fake** — Both must satisfy the trait.
+4. **Wire into Services** — If the crate has a service container, add the new service.
+5. **Write tests** — Use Given/When/Then with fakes. Test observable behavior only.
+6. **Add documentation** — Module docs, type docs, error docs.
 
-## 8. Tooling
+## 7. Tooling
 
-Read the `justfile` to determine what additional tooling is related to this project. Prioritize running commands from the `justfile` instead of manual invocation. If there is a `just test` command, then use that instead of `cargo test`, etc.
+Read the `justfile` to determine available commands. Prioritize running commands from the `justfile` instead of manual invocation. Key commands:
 
-## 9. Misc
+- `just test` — run all tests (nextest + doc tests)
+- `just check` — workspace check
+- `just clippy` — lint
+- `just fmt` — format
+- `just coverage` — generate coverage report
+
+## 8. Misc
 
 - NEVER manually split a string using `.chars` or by indexing. Use the `unicode-segmentation` crate.
-- No trivial setters for struct methods. Prefer meaningful semantic actions. It's an anti-pattern to directly inspect and manipulate state.
+- Avoid trivial setters for struct methods. Prefer meaningful semantic actions.

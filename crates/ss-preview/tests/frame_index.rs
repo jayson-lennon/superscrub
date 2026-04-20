@@ -22,6 +22,18 @@ fn time_to_frame_index_at_one_second() {
 }
 
 #[test]
+fn time_to_frame_index_at_one_second() {
+    // Given time=1.0, fps=30, dur=10.0.
+    let (time, fps, dur) = (1.0, 30, 10.0);
+
+    // When converting to frame index.
+    let result = time_to_frame_index(time, fps, dur);
+
+    // Then the result is 30.
+    assert_eq!(result, Some(30));
+}
+
+#[test]
 fn time_to_frame_index_at_end_minus_one() {
     // Given time=9.999, fps=30, dur=10.0.
     // When converting to frame index.
