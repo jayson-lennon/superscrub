@@ -1,0 +1,12 @@
+# AI
+.kilo/
+.plans/
+.opencode/
+
+# Rust
+/target
+Cargo.lock
+
+# Code analysis
+coverage.lcov
+debt.json

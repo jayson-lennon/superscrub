@@ -1,0 +1,13 @@
+[package]
+name = "ss-compositor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ss-core = { path = "../ss-core" }
+euclid = { workspace = true }
+wherror = { workspace = true }
+error-stack = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
