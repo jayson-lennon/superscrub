@@ -5,7 +5,7 @@ use std::sync::Arc;
 use ss_compositor::{CompositorRenderer, FakeImageProvider, FrameRenderer, Viewport};
 use ss_core::animation::{Easing, Keyframe};
 use ss_core::clip::{ClipDef, ClipType, Sizing};
-use ss_core::project::Project;
+use ss_core::project::{EncodingConfig, Project};
 
 /// The project file path used in tests. Images resolve relative to this.
 pub const PROJECT_FILE: &str = "/test/project.json";
@@ -36,6 +36,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
         output: "output.mp4".to_string(),
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio: None,
+        encoding: EncodingConfig::default(),
         clips,
     }
 }

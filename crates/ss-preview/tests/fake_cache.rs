@@ -6,7 +6,7 @@
 use std::sync::atomic::Ordering;
 
 use image::RgbaImage;
-use ss_core::project::Project;
+use ss_core::project::{EncodingConfig, Project};
 use ss_preview::{FakePreviewCache, PreviewCache, RenderProgress};
 
 fn test_project() -> Project {
@@ -17,6 +17,7 @@ fn test_project() -> Project {
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio: None,
+        encoding: EncodingConfig::default(),
         clips: vec![],
     }
 }

@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use ss_core::clip::{ClipDef, ClipType, Sizing};
-use ss_core::project::Project;
+use ss_core::project::{EncodingConfig, Project};
 
 /// The project file path used in tests.
 pub const PROJECT_FILE: &str = "/test/project.json";
@@ -17,6 +17,7 @@ pub fn minimal_project() -> Project {
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio: None,
+        encoding: EncodingConfig::default(),
         clips: vec![ClipDef {
             id: "clip1".into(),
             clip_type: ClipType::Image {
@@ -43,6 +44,7 @@ pub fn multi_track_project() -> Project {
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio: None,
+        encoding: EncodingConfig::default(),
         clips: vec![
             ClipDef {
                 id: "bg".into(),

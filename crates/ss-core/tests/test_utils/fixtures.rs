@@ -47,6 +47,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
             path: "assets/song.mp3".to_string(),
             start_time: 0.0,
         }),
+        encoding: ss_core::project::EncodingConfig::default(),
         clips,
     }
 }

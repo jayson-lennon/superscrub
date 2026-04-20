@@ -3,11 +3,29 @@ name = "ss-render"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "ss_render"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ss-render"
 path = "src/main.rs"
 
 [dependencies]
 ss-core = { path = "../ss-core" }
+ss-compositor = { path = "../ss-compositor" }
+ss-preview = { path = "../ss-preview" }
 wherror = { workspace = true }
 error-stack = { workspace = true }
+derive_more = { workspace = true }
+image = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+kanal = { workspace = true }
+parking_lot = { workspace = true }
+tempfile = { workspace = true }
+ctrlc = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }

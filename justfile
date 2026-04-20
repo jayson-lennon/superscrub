@@ -23,6 +23,16 @@ demo-gen:
 render project:
     cargo run -p ss-render -- {{project}}
 
+# Quick render test: generate test-frame images and render to MP4.
+# Full 10s:  just test-render
+# Short 3s:  just test-render 0 3
+# Sub-range: just test-render 2 7
+test-render start='0' end='10': (test-frame-gen)
+    @mkdir -p examples/test-frame/output
+    cargo run -q -p ss-render -- examples/test-frame/project.json --start {{start}} --end {{end}} --output examples/test-frame/output/test-render.mp4
+    @echo ""
+    @echo "  wrote examples/test-frame/output/test-render.mp4"
+
 # Generate test images and render frames at key timestamps for visual inspection.
 # Output goes to examples/test-frame/output/
 test-frame: (test-frame-gen) (test-frame-render "0.0" "start") (test-frame-render "3.0" "mid-slide") (test-frame-render "5.0" "peak") (test-frame-render "9.0" "fade-out")

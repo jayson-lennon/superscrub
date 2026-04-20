@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use ss_compositor::{CompositorRenderer, FakeImageProvider};
 use ss_core::clip::{ClipDef, ClipType, Sizing};
-use ss_core::project::Project;
+use ss_core::project::{EncodingConfig, Project};
 use ss_preview::{BackgroundPreviewCache, PreviewCache};
 
 fn minimal_project() -> Project {
@@ -19,6 +19,7 @@ fn minimal_project() -> Project {
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio: None,
+        encoding: EncodingConfig::default(),
         clips: vec![ClipDef {
             id: "test".into(),
             clip_type: ClipType::Image {

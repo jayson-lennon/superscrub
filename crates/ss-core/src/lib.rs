@@ -28,6 +28,6 @@ pub use clip::{ClipDef, ClipType, FitAnchor, FitMode, Sizing};
 pub use errors::{ConfigWatchError, InterpolationError, PathResolveError, ProjectLoadError};
 pub use interpolation::{apply_easing, interpolate_keyframes, resolve_clip};
 pub use path_resolve::resolve_path;
-pub use project::{AudioConfig, Project};
+pub use project::{AudioConfig, EncodingConfig, Project};
 pub use traits::{ConfigWatcher, ProjectLoader};
 pub use transform::ResolvedClip;
