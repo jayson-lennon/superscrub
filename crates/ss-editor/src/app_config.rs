@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_resolution_full_res() {
+    fn preview_resolution_with_divisor_one_returns_full_resolution() {
         let mut config = AppConfig::default();
         config.preview_divisor = 1;
         let res = config.preview_resolution([1920, 1080]);
@@ -163,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_resolution_quarter_res() {
+    fn preview_resolution_with_divisor_four_returns_quarter_resolution() {
         let mut config = AppConfig::default();
         config.preview_divisor = 4;
         let res = config.preview_resolution([1920, 1080]);
@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn save_and_load_roundtrip() {
+    fn config_survives_save_and_load_roundtrip() {
         // Given a temp dir for the config file.
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.json");

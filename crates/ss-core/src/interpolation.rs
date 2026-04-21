@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn interpolate_with_three_keyframes() {
+    fn interpolate_between_second_and_third_keyframe_returns_correct_lerp() {
         // Given three keyframes [0.0 → 0.0, 5.0 → 50.0, 10.0 → 100.0].
         let keyframes = vec![kf(0.0, 0.0), kf(5.0, 50.0), kf(10.0, 100.0)];
 
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn interpolate_with_negative_values() {
+    fn interpolate_between_negative_values_returns_negative_midpoint() {
         // Given two keyframes interpolating between negative numbers.
         let keyframes = vec![kf(0.0, -100.0), kf(10.0, -200.0)];
 
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn interpolate_with_negative_time() {
+    fn interpolate_before_first_keyframe_with_negative_time_holds_first_value() {
         // Given keyframes starting at t=0.
         let keyframes = vec![kf(0.0, 10.0), kf(10.0, 20.0)];
 
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn interpolate_with_decreasing_values() {
+    fn interpolate_decreasing_values_returns_correct_midpoint() {
         // Given keyframes going from high to low.
         let keyframes = vec![kf(0.0, 100.0), kf(10.0, 0.0)];
 
@@ -430,7 +430,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_with_translate_x_animation() {
+    fn clip_with_translate_x_animation_interpolates_at_midpoint() {
         // Given a clip with a translate_x animation from 0 to 100.
         let clip = build_clip_with_animation(
             "test",
@@ -449,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_with_multiple_tracks() {
+    fn clip_with_multiple_animation_tracks_resolves_each_independently() {
         // Given a clip with both translate_x and opacity animations.
         let mut clip = build_image_clip("test", "img.png", 0.0, 10.0);
         clip.animations = vec![
@@ -472,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_preserves_definition() {
+    fn resolve_clip_preserves_original_clip_definition() {
         // Given a clip.
         let clip = build_image_clip("my-clip", "photo.png", 2.0, 8.0);
 
@@ -486,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_with_all_animatable_properties() {
+    fn clip_with_all_properties_animated_resolves_each_at_linear_midpoint() {
         // Given a clip with all six properties animated.
         let mut clip = build_image_clip("test", "img.png", 0.0, 10.0);
         clip.animations = vec![
@@ -529,7 +529,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_with_sine_in_out_easing_differs_from_linear() {
+    fn clip_with_sine_in_out_easing_produces_slower_start_than_linear() {
         // Given two clips: one with linear, one with SineInOut.
         let linear_clip = build_clip_with_animation(
             "linear",
@@ -597,7 +597,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_resolved_at_clip_start_time() {
+    fn resolve_clip_at_start_time_interpolates_from_keyframe_time() {
         // Given a clip with an animation starting at t=2.
         let clip = build_clip_with_animation(
             "test",
@@ -613,7 +613,7 @@ mod tests {
     }
 
     #[test]
-    fn clip_resolved_at_clip_end_time() {
+    fn resolve_clip_at_end_time_interpolates_from_keyframe_time() {
         // Given a clip with an animation ending at value 200.
         let clip = build_clip_with_animation(
             "test",

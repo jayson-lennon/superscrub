@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn stop_and_reset() {
+    fn stop_and_reset_stops_playback_and_resets_time_to_zero() {
         let mut state = EditorState::new();
         state.load_project(minimal_project(), PathBuf::from("/test/project.json"));
         state.seek_to(5.0);

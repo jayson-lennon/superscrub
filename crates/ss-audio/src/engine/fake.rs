@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn load_records_path() {
+    fn load_stores_path() {
         // Given a fake engine.
         let engine = FakeAudioEngine::new();
 
@@ -305,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn set_volume_clamps_high() {
+    fn set_volume_above_one_does_not_panic() {
         // Given a fake engine.
         let engine = FakeAudioEngine::new();
 
@@ -357,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn service_can_be_created() {
+    fn service_wraps_engine_and_clones() {
         // Given a fake engine wrapped in a service.
         let service = AudioEngineService::new(Arc::new(FakeAudioEngine::new()));
 

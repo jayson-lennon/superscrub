@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn project_with_explicit_encoding() {
+    fn project_with_explicit_encoding_preserves_values() {
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
@@ -159,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn encoding_config_serde_roundtrip() {
+    fn encoding_config_survives_serde_roundtrip() {
         let config = EncodingConfig {
             crf: 28,
             preset: "slow".into(),
@@ -179,7 +179,7 @@ mod tests {
     // ============================================================
 
     #[test]
-    fn parse_example_project() {
+    fn example_project_file_parses_with_correct_fields() {
         // Given the example project JSON file.
         let json = std::fs::read_to_string("../../examples/basic_project.json")
             .expect("example project file should exist");
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_dotdot_path_resolves_correctly() {
+    fn resolve_dotdot_path_joins_without_canonicalization() {
         // Given a project file and a path with parent directory references.
         let project_file = Path::new("/some/dir/project.json");
 
@@ -309,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_dot_path_resolves_correctly() {
+    fn resolve_dot_path_joins_without_canonicalization() {
         // Given a project file and a path with a dot component.
         let project_file = Path::new("/some/dir/project.json");
 
@@ -321,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_project_serde() {
+    fn project_survives_serde_roundtrip() {
         // Given a project built programmatically.
         let project = build_project(vec![]);
 
@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_project_with_multiple_clips_preserves_order() {
+    fn project_with_multiple_clips_preserves_clip_count() {
         // Given a project JSON with three clips.
         let json = r#"{
             "resolution": [1920, 1080],
@@ -359,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_project_preserves_clip_order() {
+    fn project_with_multiple_clips_preserves_first_clip_id() {
         // Given a project with three clips in a specific order.
         let json = r#"{
             "resolution": [1920, 1080],
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_project_third_clip_id_is_third() {
+    fn project_with_multiple_clips_preserves_third_clip_id() {
         // Given a project with three ordered clips.
         let json = r#"{
             "resolution": [1920, 1080],
@@ -402,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_sizing_natural() {
+    fn clip_without_sizing_defaults_to_natural() {
         // Given a clip with sizing omitted (defaults to Natural).
         let json = r#"{
             "resolution": [1920, 1080],
@@ -420,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_sizing_explicit() {
+    fn clip_with_explicit_sizing_preserves_dimensions() {
         // Given a clip with Explicit sizing.
         let json = r#"{
             "resolution": [1920, 1080],
@@ -440,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_sizing_scale() {
+    fn clip_with_scale_sizing_preserves_factor() {
         // Given a clip with Scale sizing.
         let json = r#"{
             "resolution": [1920, 1080],
@@ -458,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_sizing_fit_rect_contain() {
+    fn clip_with_fit_rect_sizing_preserves_contain_mode_and_dimensions() {
         // Given a clip with FitRect Contain sizing.
         let json = r#"{
             "resolution": [1920, 1080],

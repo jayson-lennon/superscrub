@@ -122,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn set_phase_changes_phase() {
+    fn set_phase_updates_phase() {
         let tracker = ProgressTracker::new(100);
 
         tracker.set_phase(RenderPhase::MuxingAudio);

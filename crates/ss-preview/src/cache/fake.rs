@@ -193,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn start_render_records_settings() {
+    fn start_render_stores_preview_resolution_and_fps() {
         // Given a fake cache.
         let cache = FakePreviewCache::new();
 

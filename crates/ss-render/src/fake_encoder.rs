@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn frame_count_matches_sent() {
+    fn frame_count_equals_number_of_sent_frames() {
         let encoder = FakeFrameEncoder::new();
         let frame = RgbaImage::from_pixel(2, 2, Rgba([0, 0, 0, 255]));
 
