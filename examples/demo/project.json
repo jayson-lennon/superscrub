@@ -12,7 +12,11 @@
         50,
         255
     ],
-    "clips": [
+    "audio": {
+    "path": "../test-audio/counting.mp3",
+    "start_time": 0.0
+  },
+  "clips": [
         {
             "id": "background",
             "type": "image",

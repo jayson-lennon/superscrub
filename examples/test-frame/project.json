@@ -3,6 +3,10 @@
   "fps": 30,
   "duration": 10.0,
   "output": "output.mp4",
+  "audio": {
+    "path": "../test-audio/counting.mp3",
+    "start_time": 0.0
+  },
   "background": [20, 22, 30, 255],
   "clips": [
     {
