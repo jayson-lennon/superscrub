@@ -4,9 +4,43 @@
 //! dependency injection for testing. [`AudioPlaybackState`] tracks whether
 //! audio is playing or paused.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use error_stack::Report;
+
+use crate::decoder::DecodedAudio;
+
+/// Metadata for a clip to be loaded by the audio engine.
+///
+/// Contains the file path and timeline scheduling information.
+/// Passed to [`AudioEngine::load_clips()`].
+#[derive(Debug, Clone)]
+pub struct AudioClipInfo {
+    /// Path to the audio file.
+    pub path: PathBuf,
+    /// When this clip starts on the timeline (seconds).
+    pub start_time: f64,
+    /// When this clip ends on the timeline (seconds).
+    pub end_time: f64,
+    /// Per-clip volume level [0.0, 1.0].
+    pub volume: f32,
+}
+
+/// A decoded audio clip ready for mixing.
+///
+/// Combines the decoded sample buffer with timeline metadata
+/// needed to determine when and how to mix this clip.
+#[derive(Debug, Clone)]
+pub struct LoadedAudioClip {
+    /// The decoded audio samples.
+    pub audio: DecodedAudio,
+    /// When this clip starts on the timeline (seconds).
+    pub start_time: f64,
+    /// When this clip ends on the timeline (seconds).
+    pub end_time: f64,
+    /// Per-clip volume level [0.0, 1.0].
+    pub volume: f32,
+}
 
 /// Failed to perform an audio operation.
 #[derive(Debug, wherror::Error)]
@@ -25,8 +59,8 @@ pub enum AudioPlaybackState {
 
 /// Audio playback engine with seeking for preview synchronization.
 ///
-/// Wraps an audio backend (rodio) to provide play/pause/seek/position.
-/// All operations are synchronous because rodio's sink operations are synchronous.
+/// Wraps an audio backend to provide play/pause/seek/position.
+/// All operations are synchronous.
 ///
 /// There is no `stop` method — the frontend can achieve stop semantics via
 /// `pause()` + `seek(0.0)`.
@@ -81,8 +115,22 @@ pub trait AudioEngine: Send + Sync {
 
     /// Report the current playback state.
     fn state(&self) -> AudioPlaybackState;
+
+    /// Load multiple audio clips for simultaneous mixing.
+    ///
+    /// Replaces any previously loaded clips. Each clip has its own
+    /// timeline range and volume. During playback, only clips whose
+    /// `[start_time, end_time)` range contains the current position
+    /// are mixed into the output.
+    ///
+    /// The engine enters `Paused` state at position 0.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any audio file cannot be opened or decoded.
+    fn load_clips(&self, clips: &[AudioClipInfo]) -> Result<(), Report<AudioError>>;
 }
 
+pub mod cpal;
 pub mod fake;
-pub mod rodio;
 pub mod service;

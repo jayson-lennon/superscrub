@@ -11,7 +11,7 @@ use ss_compositor::{CompositorRenderer, FilesystemImageProvider, FrameRendererSe
 use ss_core::project::Project;
 use ss_render::{
     FfmpegEncoder, ProgressTracker, RenderError, RenderJob, RenderPhase, clamp_time_range,
-    detect_ffmpeg, mux_audio,
+    detect_ffmpeg, mux_mixed_audio, render_audio,
 };
 
 /// Headless renderer for SuperScrub projects.
@@ -95,7 +95,7 @@ fn run() -> Result<(), Report<RenderError>> {
     // Determine the encoder output path.
     // With audio: write to a temp file, then mux into the final output.
     // Without audio: write directly to the final output — no temp needed.
-    let needs_audio_mux = project.audio.is_some();
+    let needs_audio_mux = !project.audio_clips.is_empty();
     let temp_video = if needs_audio_mux {
         Some(
             tempfile::Builder::new()
@@ -166,24 +166,31 @@ fn run() -> Result<(), Report<RenderError>> {
         .join()
         .unwrap_or_else(|_| Err(Report::new(RenderError).attach("render thread panicked")))?;
 
-    // Mux audio if needed (temp_video auto-cleaned on drop).
-    if let Some(ref audio_config) = project.audio {
+    // Mix and mux audio if needed (temp_video auto-cleaned on drop).
+    if !project.audio_clips.is_empty() {
         progress.set_phase(RenderPhase::MuxingAudio);
-        println!("Muxing audio into {}...", output_path.display());
+        println!("Mixing {} audio tracks...", project.audio_clips.len());
 
-        let audio_path = ss_core::path_resolve::resolve_path(&cli.project, &audio_config.path)
+        let temp_dir = tempfile::tempdir()
             .change_context(RenderError)
-            .attach("failed to resolve audio path")?;
+            .attach("failed to create temp dir for audio")?;
 
-        let temp = temp_video.expect("temp_video must exist when audio is present");
-        mux_audio(
-            temp.path(),
-            &audio_path,
-            &output_path,
-            audio_config.start_time,
+        let mixed_wav = render_audio(
+            &project,
+            &cli.project,
+            temp_dir.path(),
+            start_time,
+            end_time,
         )
         .change_context(RenderError)
-        .attach("audio muxing failed")?;
+        .attach("audio mixing failed")?;
+
+        println!("Muxing audio into {}...", output_path.display());
+
+        let temp = temp_video.expect("temp_video must exist when audio is present");
+        mux_mixed_audio(temp.path(), &mixed_wav, &output_path)
+            .change_context(RenderError)
+            .attach("audio muxing failed")?;
     }
 
     progress.set_phase(RenderPhase::Complete);

@@ -2,12 +2,14 @@
 //! and preview cache frame lookups.
 //!
 //! The controller is the single point of truth for "what frame should
-//! the viewport show right now?" It owns `EditorState` and drives
+//! the viewport show right now?" It owns [`EditorState`] and drives
 //! the audio engine and preview cache in response to user actions.
+//! It also manages audio loading when a project is loaded or reloaded.
 
+use error_stack::ResultExt;
 use tracing::debug;
 
-use ss_audio::AudioEngineService;
+use ss_audio::{AudioClipInfo, AudioEngineService, AudioError, AudioPlaybackState};
 use ss_preview::PreviewCacheService;
 use ss_preview::time_to_frame_index;
 
@@ -98,8 +100,19 @@ impl PlaybackController {
     ///
     /// Returns `true` if playback should continue.
     /// When playback reaches the end, auto-pauses and returns `false`.
+    /// Also pauses if the audio engine auto-stopped (e.g., cpal callback
+    /// reached the end of the sample buffer).
     pub fn advance(&mut self, dt: f64) -> bool {
         if !self.state.is_playing() {
+            return false;
+        }
+
+        // Detect audio engine auto-stop. Only check when audio is loaded
+        // (duration > 0 means audio was loaded). If the engine reports Paused
+        // while the editor is Playing, the audio reached its end.
+        let audio_loaded = self.audio.duration() > 0.0;
+        if audio_loaded && self.audio.state() == AudioPlaybackState::Paused {
+            self.pause();
             return false;
         }
 
@@ -107,7 +120,7 @@ impl PlaybackController {
         if !continuing {
             self.pause();
         }
-        false // Let the caller re-check is_playing()
+        false
     }
 
     /// Get the current frame from the preview cache.
@@ -137,6 +150,50 @@ impl PlaybackController {
     /// The current preview fps setting.
     pub fn preview_fps(&self) -> u32 {
         self.preview_fps
+    }
+
+    /// Load audio for the current project, if configured.
+    ///
+    /// Resolves all audio clip paths relative to the project file and loads
+    /// them into the audio engine via `load_clips()`. Pauses audio if the
+    /// project has no audio clips.
+    /// No-op if no project is loaded.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any audio path cannot be resolved or any audio
+    /// file cannot be loaded.
+    pub fn load_project_audio(&self) -> Result<(), error_stack::Report<AudioError>> {
+        let Some(project) = self.state.project() else {
+            return Ok(());
+        };
+        let Some(project_file) = self.state.project_file() else {
+            return Ok(());
+        };
+
+        if project.audio_clips.is_empty() {
+            self.audio.pause();
+            return Ok(());
+        }
+
+        let clip_infos: Vec<AudioClipInfo> = project
+            .audio_clips
+            .iter()
+            .map(|clip| {
+                let path = ss_core::path_resolve::resolve_path(project_file, &clip.path)
+                    .change_context(AudioError)
+                    .attach(format!("audio path: {}", clip.path))?;
+                Ok::<_, error_stack::Report<AudioError>>(AudioClipInfo {
+                    path,
+                    start_time: clip.start_time,
+                    end_time: clip.end_time,
+                    volume: clip.volume,
+                })
+            })
+            .collect::<Result<Vec<AudioClipInfo>, _>>()?;
+
+        self.audio.load_clips(&clip_infos)?;
+        Ok(())
     }
 
     /// Start a preview render for the current project.

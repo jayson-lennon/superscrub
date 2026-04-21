@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use derive_more::Debug;
 
-use crate::engine::{AudioEngine, AudioError, AudioPlaybackState};
+use crate::engine::{AudioClipInfo, AudioEngine, AudioError, AudioPlaybackState};
 
 /// Service wrapper for [`AudioEngine`].
 #[derive(Debug, Clone)]
@@ -66,5 +66,17 @@ impl AudioEngineService {
     /// Report the current playback state.
     pub fn state(&self) -> AudioPlaybackState {
         self.backend.state()
+    }
+
+    /// Load multiple audio clips for simultaneous mixing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any audio file cannot be opened or decoded.
+    pub fn load_clips(
+        &self,
+        clips: &[AudioClipInfo],
+    ) -> Result<(), error_stack::Report<AudioError>> {
+        self.backend.load_clips(clips)
     }
 }

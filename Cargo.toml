@@ -12,7 +12,6 @@ rstest = "0.25"
 image = "0.25"
 imageproc = "0.25"
 derive_more = { version = "2", features = ["debug"] }
-rodio = "0.22"
 rayon = "1.10"
 ctrlc = "3"
 eframe = "0.31"
@@ -21,7 +20,10 @@ dirs = "6"
 clap = { version = "4", features = ["derive"] }
 kanal = "0.1"
 parking_lot = "0.12"
+symphonia = { version = "0.5", features = ["mp3", "wav", "flac", "ogg", "aac", "pcm", "vorbis"] }
+rubato = "0.16"
 tempfile = "3"
+cpal = "0.17"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 

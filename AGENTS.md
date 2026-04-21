@@ -8,7 +8,7 @@ SuperScrub is a programmatic video editor built in Rust with an egui-based GUI. 
 
 - **ss-core** — Data model, project config parsing, animation interpolation. Pure data + algorithms, no I/O.
 - **ss-compositor** — Frame rendering (image loading, transforms, compositing).
-- **ss-audio** — Audio engine (playback, seek, pause via rodio).
+- **ss-audio** — Audio engine (playback, seek, pause via cpal).
 - **ss-preview** — Preview cache (pre-renders frames in background via rayon).
 - **ss-render** — Headless renderer (ffmpeg pipe, audio muxing, progress tracking).
 - **ss-editor** — egui application (viewport, timeline, transport controls, settings).
@@ -84,7 +84,7 @@ src/
   engine.rs       # Trait + error (parent module, declares submodules)
   engine/
     service.rs    # Service wrapper
-    rodio.rs      # Real implementation
+    cpal.rs       # Real implementation
     fake.rs       # Test fake
 ```
 

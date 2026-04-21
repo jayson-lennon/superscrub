@@ -16,7 +16,7 @@ pub fn build_project(clips: Vec<ss_core::clip::ClipDef>) -> Project {
         duration: 10.0,
         output: "output.mp4".to_string(),
         background: [0x2c, 0x2e, 0x34, 0xff],
-        audio: None,
+        audio_clips: vec![],
         encoding: EncodingConfig::default(),
         clips,
     }

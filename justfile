@@ -116,22 +116,6 @@ test-frame-render time label:
     cargo run -p ss-compositor --bin ss-compositor -- examples/test-frame/project.json --time {{time}} --output examples/test-frame/output/frame-{{label}}-t{{time}}.png
     @echo ""
 
-# Test audio playback with the sample mp3.
-# play from start:
-#   just test-audio
-# seek to 5s then play:
-#   just test-audio-seek 5
-# play, pause after 3s, resume after 2s pause:
-#   just test-audio-pause 3
-test-audio:
-    cargo run -p ss-audio --bin ss-audio -- examples/test-audio/counting.mp3
-
-test-audio-seek seconds:
-    cargo run -p ss-audio --bin ss-audio -- examples/test-audio/counting.mp3 --seek {{seconds}}
-
-test-audio-pause seconds:
-    cargo run -p ss-audio --bin ss-audio -- examples/test-audio/counting.mp3 --pause {{seconds}}
-
 # Render a sequence of evenly-spaced frames as PNGs for visual inspection.
 # Generates 5 frames across the 10s duration by default.
 # Override count: just test-frame-seq 10

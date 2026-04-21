@@ -2,7 +2,7 @@
 
 use crate::animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
 use crate::clip::{ClipDef, ClipType, Sizing};
-use crate::project::{AudioConfig, Project};
+use crate::project::{AudioClipDef, Project};
 
 /// Build a minimal image clip with sensible defaults.
 pub fn build_image_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> ClipDef {
@@ -51,6 +51,18 @@ pub fn build_clip_with_animations(
     clip
 }
 
+/// Build a minimal audio clip with sensible defaults.
+pub fn build_audio_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> AudioClipDef {
+    AudioClipDef {
+        id: id.to_string(),
+        path: path.to_string(),
+        track: 0,
+        start_time,
+        end_time,
+        volume: 1.0,
+    }
+}
+
 /// Build a minimal project with the given clips.
 pub fn build_project(clips: Vec<ClipDef>) -> Project {
     Project {
@@ -59,10 +71,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
         duration: 30.0,
         output: "output.mp4".to_string(),
         background: [0x2c, 0x2e, 0x34, 0xff],
-        audio: Some(AudioConfig {
-            path: "assets/song.mp3".to_string(),
-            start_time: 0.0,
-        }),
+        audio_clips: vec![build_audio_clip("audio", "assets/song.mp3", 0.0, 30.0)],
         encoding: crate::project::EncodingConfig::default(),
         clips,
     }

@@ -127,9 +127,9 @@ mod tests {
     use image::RgbaImage;
     use ss_core::project::{EncodingConfig, Project};
 
-    use super::FakePreviewCache;
     use super::super::PreviewCache;
     use super::super::PreviewRenderProgress;
+    use super::FakePreviewCache;
 
     fn test_project() -> Project {
         Project {
@@ -138,7 +138,7 @@ mod tests {
             duration: 10.0,
             output: "out.mp4".into(),
             background: [0, 0, 0, 255],
-            audio: None,
+            audio_clips: vec![],
             encoding: EncodingConfig::default(),
             clips: vec![],
         }

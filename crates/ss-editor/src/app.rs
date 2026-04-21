@@ -79,12 +79,7 @@ impl EditorApp {
         let _ = controller.start_render(preview_res);
 
         // Load audio if the project has an audio config.
-        if let Some(audio_config) = controller.state().project().and_then(|p| p.audio.as_ref())
-            && let Ok(audio_path) =
-                ss_core::path_resolve::resolve_path(&project_path, &audio_config.path)
-        {
-            let _ = services.audio.load(&audio_path);
-        }
+        let _ = controller.load_project_audio();
 
         // Start watching for file changes.
         let mut watcher = ProjectWatcher::new(services.watcher.clone());
@@ -116,6 +111,7 @@ impl eframe::App for EditorApp {
                 .config
                 .preview_resolution(self.controller.state().resolution());
             let _ = self.controller.start_render(preview_res);
+            let _ = self.controller.load_project_audio();
         }
 
         // 2. Advance playback if playing.

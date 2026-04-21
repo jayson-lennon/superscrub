@@ -9,16 +9,15 @@ tracing-subscriber.workspace = true
 ss-core = { path = "../ss-core" }
 wherror = { workspace = true }
 error-stack = { workspace = true }
-rodio = { workspace = true }
 derive_more = { workspace = true }
-ctrlc = { workspace = true }
+symphonia = { workspace = true }
+rubato = { workspace = true }
+parking_lot = { workspace = true }
+cpal = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
-
-[[bin]]
-name = "ss-audio"
-path = "src/main.rs"
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

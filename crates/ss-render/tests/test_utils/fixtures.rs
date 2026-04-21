@@ -16,7 +16,7 @@ pub fn minimal_project() -> Project {
         duration: 2.0,
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
-        audio: None,
+        audio_clips: vec![],
         encoding: EncodingConfig::default(),
         clips: vec![clip],
     }
@@ -33,7 +33,7 @@ pub fn empty_project() -> Project {
         duration: 2.0,
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
-        audio: None,
+        audio_clips: vec![],
         encoding: EncodingConfig::default(),
         clips: vec![],
     }

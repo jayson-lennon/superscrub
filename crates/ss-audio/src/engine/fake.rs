@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use error_stack::Report;
 use tracing::trace;
 
-use crate::engine::{AudioEngine, AudioError, AudioPlaybackState};
+use crate::engine::{AudioClipInfo, AudioEngine, AudioError, AudioPlaybackState};
 
 /// Fake audio engine for testing.
 ///
@@ -28,6 +28,10 @@ pub struct FakeAudioEngine {
     pub seek_count: AtomicUsize,
     /// The path passed to the last `load` call.
     pub last_loaded_path: Mutex<Option<String>>,
+    /// Number of times `load_clips` has been called.
+    pub load_clips_count: AtomicUsize,
+    /// The clips passed to the last `load_clips` call.
+    pub last_loaded_clips: Mutex<Vec<AudioClipInfo>>,
 }
 
 #[derive(Default)]
@@ -49,6 +53,8 @@ impl FakeAudioEngine {
             pause_count: AtomicUsize::new(0),
             seek_count: AtomicUsize::new(0),
             last_loaded_path: Mutex::new(None),
+            load_clips_count: AtomicUsize::new(0),
+            last_loaded_clips: Mutex::new(Vec::new()),
         }
     }
 
@@ -66,7 +72,14 @@ impl FakeAudioEngine {
             pause_count: AtomicUsize::new(0),
             seek_count: AtomicUsize::new(0),
             last_loaded_path: Mutex::new(None),
+            load_clips_count: AtomicUsize::new(0),
+            last_loaded_clips: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Set the playback state directly (for testing auto-stop scenarios).
+    pub fn set_state(&self, state: AudioPlaybackState) {
+        self.state.lock().unwrap().playback = state;
     }
 }
 
@@ -89,6 +102,19 @@ impl AudioEngine for FakeAudioEngine {
         state.loaded = true;
         state.playback = AudioPlaybackState::Paused;
         state.position = 0.0;
+        Ok(())
+    }
+
+    fn load_clips(&self, clips: &[AudioClipInfo]) -> Result<(), Report<AudioError>> {
+        trace!("fake audio operation: load_clips");
+        self.load_clips_count.fetch_add(1, Ordering::SeqCst);
+        let mut state = self.state.lock().unwrap();
+        *self.last_loaded_clips.lock().unwrap() = clips.to_vec();
+        state.loaded = true;
+        state.playback = AudioPlaybackState::Paused;
+        state.position = 0.0;
+        // Use the max end_time as the fake's duration.
+        state.duration = clips.iter().map(|c| c.end_time).fold(0.0, f64::max);
         Ok(())
     }
 
@@ -140,9 +166,9 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
 
-    use super::FakeAudioEngine;
     use super::super::AudioEngine;
     use super::super::AudioPlaybackState;
+    use super::FakeAudioEngine;
     use crate::engine::service::AudioEngineService;
 
     #[test]
@@ -363,5 +389,82 @@ mod tests {
 
         // Then the service exists and can be cloned.
         let _cloned = service.clone();
+    }
+
+    // ================================================================
+    // load_clips tests
+    // ================================================================
+
+    #[test]
+    fn load_clips_increments_count() {
+        // Given a fake engine.
+        let engine = FakeAudioEngine::new();
+        let clips = vec![crate::engine::AudioClipInfo {
+            path: std::path::PathBuf::from("a.wav"),
+            start_time: 0.0,
+            end_time: 10.0,
+            volume: 1.0,
+        }];
+
+        // When calling load_clips().
+        engine.load_clips(&clips).unwrap();
+
+        // Then load_clips_count is 1.
+        assert_eq!(engine.load_clips_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn load_clips_stores_clip_infos() {
+        // Given a fake engine.
+        let engine = FakeAudioEngine::new();
+        let clips = vec![
+            crate::engine::AudioClipInfo {
+                path: std::path::PathBuf::from("a.wav"),
+                start_time: 0.0,
+                end_time: 10.0,
+                volume: 0.8,
+            },
+            crate::engine::AudioClipInfo {
+                path: std::path::PathBuf::from("b.wav"),
+                start_time: 5.0,
+                end_time: 15.0,
+                volume: 0.5,
+            },
+        ];
+
+        // When calling load_clips().
+        engine.load_clips(&clips).unwrap();
+
+        // Then the clips are stored.
+        let stored = engine.last_loaded_clips.lock().unwrap();
+        assert_eq!(stored.len(), 2);
+        assert_eq!(stored[0].path, std::path::PathBuf::from("a.wav"));
+        assert_eq!(stored[1].path, std::path::PathBuf::from("b.wav"));
+    }
+
+    #[test]
+    fn load_clips_duration_is_max_end_time() {
+        // Given a fake engine and clips with different end times.
+        let engine = FakeAudioEngine::new();
+        let clips = vec![
+            crate::engine::AudioClipInfo {
+                path: std::path::PathBuf::from("a.wav"),
+                start_time: 0.0,
+                end_time: 10.0,
+                volume: 1.0,
+            },
+            crate::engine::AudioClipInfo {
+                path: std::path::PathBuf::from("b.wav"),
+                start_time: 5.0,
+                end_time: 20.0,
+                volume: 1.0,
+            },
+        ];
+
+        // When calling load_clips().
+        engine.load_clips(&clips).unwrap();
+
+        // Then the duration is the max end_time.
+        assert_eq!(engine.duration(), 20.0);
     }
 }

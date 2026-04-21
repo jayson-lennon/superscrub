@@ -3,21 +3,95 @@
 //! The timeline shows one row per track, with clip blocks as colored rectangles
 //! positioned according to their start/end times. A vertical red playhead line
 //! shows the current position. Click-to-seek is supported.
+//!
+//! Video tracks occupy the top section. A separator with a "♫ Audio" label
+//! divides video from audio tracks below. Audio clip blocks use a distinct
+//! color palette and display volume percentage when below 100%.
 
 use egui::{Color32, Pos2, Rect, RichText, Sense, Vec2};
 use ss_core::clip::ClipDef;
-use ss_core::project::Project;
+use ss_core::project::{AudioClipDef, Project};
+
+/// Computed layout for the timeline (testable without egui).
+///
+/// All positions are relative to the timeline widget's origin.
+/// The `show()` method uses this to drive drawing; tests verify the math.
+#[derive(Debug, PartialEq)]
+struct TimelineLayout {
+    /// Total height of the timeline widget.
+    total_height: f32,
+    /// Y position where video tracks start (relative to origin).
+    video_origin_y: f32,
+    /// Number of video track rows.
+    num_video_tracks: usize,
+    /// Y position where the separator is drawn (relative to origin), if any.
+    separator_y: Option<f32>,
+    /// Y position where audio tracks start (relative to origin), if any.
+    audio_origin_y: Option<f32>,
+    /// Number of audio track rows.
+    num_audio_tracks: usize,
+}
+
+/// Layout constants used by the timeline.
+const TRACK_HEIGHT: f32 = 24.0;
+const GAP: f32 = 2.0;
+const TIME_BAR_HEIGHT: f32 = 16.0;
+const DEFAULT_SEPARATOR_HEIGHT: f32 = 4.0;
+
+impl TimelineLayout {
+    /// Compute the timeline layout from project data and dimensions.
+    ///
+    /// Returns a `TimelineLayout` with all positions needed for rendering.
+    fn compute(
+        num_video_tracks: usize,
+        num_audio_tracks: usize,
+        time_bar_height: f32,
+        track_height: f32,
+        gap: f32,
+        separator_height: f32,
+    ) -> Self {
+        let video_origin_y = time_bar_height;
+        let video_section_height = num_video_tracks as f32 * (track_height + gap);
+        let has_audio = num_audio_tracks > 0;
+
+        let (separator_y, audio_origin_y, separator_space) = if has_audio {
+            let sep_y = video_origin_y + video_section_height;
+            let sep_space = separator_height + gap;
+            let audio_y = sep_y + sep_space;
+            (Some(sep_y), Some(audio_y), sep_space)
+        } else {
+            (None, None, 0.0)
+        };
+
+        let audio_section_height = num_audio_tracks as f32 * (track_height + gap);
+        let total_height =
+            time_bar_height + video_section_height + separator_space + audio_section_height;
+
+        Self {
+            total_height,
+            video_origin_y,
+            num_video_tracks,
+            separator_y,
+            audio_origin_y,
+            num_audio_tracks,
+        }
+    }
+}
 
 /// Manages the timeline panel display.
 pub struct TimelinePanel {
-    /// Track colors (cycled for visual distinction).
-    track_colors: Vec<Color32>,
+    /// Video track colors (cycled for visual distinction).
+    video_colors: Vec<Color32>,
+    /// Audio track colors (distinct from video colors).
+    audio_colors: Vec<Color32>,
+    /// Separator height (thin line between video and audio sections).
+    separator_height: f32,
 }
 
 impl Default for TimelinePanel {
     fn default() -> Self {
         Self {
-            track_colors: vec![
+            video_colors: vec![
                 Color32::from_rgb(70, 130, 180),  // Steel blue
                 Color32::from_rgb(180, 100, 70),  // Warm brown
                 Color32::from_rgb(100, 170, 100), // Muted green
@@ -25,6 +99,15 @@ impl Default for TimelinePanel {
                 Color32::from_rgb(190, 170, 100), // Gold
                 Color32::from_rgb(130, 180, 170), // Teal
             ],
+            audio_colors: vec![
+                Color32::from_rgb(0, 140, 140),   // Dark teal
+                Color32::from_rgb(200, 120, 50),  // Warm orange
+                Color32::from_rgb(130, 100, 170), // Muted violet
+                Color32::from_rgb(140, 150, 60),  // Olive
+                Color32::from_rgb(200, 100, 100), // Coral
+                Color32::from_rgb(110, 130, 150), // Slate
+            ],
+            separator_height: DEFAULT_SEPARATOR_HEIGHT,
         }
     }
 }
@@ -62,35 +145,88 @@ impl TimelinePanel {
             }
 
             let available_width = ui.available_width();
-            let track_height = 24.0_f32;
-            let gap = 2.0;
-            let time_bar_height = 16.0;
 
-            // Compute max track index.
-            let max_track = project.clips.iter().map(|c| c.track).max().unwrap_or(0);
-            let num_tracks = (max_track + 1) as usize;
-            let total_height = time_bar_height + num_tracks as f32 * (track_height + gap);
+            // Compute track counts.
+            let max_video_track = project.clips.iter().map(|c| c.track).max().unwrap_or(0);
+            let num_video_tracks = (max_video_track + 1) as usize;
 
-            let (response, painter) =
-                ui.allocate_painter(Vec2::new(available_width, total_height), Sense::click());
+            let max_audio_track = project
+                .audio_clips
+                .iter()
+                .map(|c| c.track)
+                .max()
+                .unwrap_or(0);
+            let num_audio_tracks = if project.audio_clips.is_empty() {
+                0
+            } else {
+                (max_audio_track + 1) as usize
+            };
+
+            // Compute layout.
+            let layout = TimelineLayout::compute(
+                num_video_tracks,
+                num_audio_tracks,
+                TIME_BAR_HEIGHT,
+                TRACK_HEIGHT,
+                GAP,
+                self.separator_height,
+            );
+
+            let (response, painter) = ui.allocate_painter(
+                Vec2::new(available_width, layout.total_height),
+                Sense::click(),
+            );
 
             let origin = response.rect.left_top();
 
             // Draw time ruler.
-            self.draw_time_ruler(&painter, origin, available_width, duration, time_bar_height);
+            self.draw_time_ruler(&painter, origin, available_width, duration, TIME_BAR_HEIGHT);
 
-            // Draw track lanes with clip blocks.
+            // Draw video track lanes with clip blocks.
             for clip in &project.clips {
-                let track_y = origin.y + time_bar_height + clip.track as f32 * (track_height + gap);
+                let track_y =
+                    origin.y + layout.video_origin_y + clip.track as f32 * (TRACK_HEIGHT + GAP);
                 self.draw_clip_block(
                     &painter,
                     clip,
                     origin.x,
                     track_y,
                     available_width,
-                    track_height,
+                    TRACK_HEIGHT,
                     duration,
                 );
+            }
+
+            // Draw separator and audio section.
+            if let (Some(sep_y), Some(audio_y)) = (layout.separator_y, layout.audio_origin_y) {
+                let separator_rect = Rect::from_min_size(
+                    Pos2::new(origin.x, origin.y + sep_y),
+                    Vec2::new(available_width, self.separator_height),
+                );
+                painter.rect_filled(separator_rect, 0.0, Color32::from_gray(60));
+
+                // Label on the separator.
+                painter.text(
+                    separator_rect.left_top() + Vec2::new(4.0, -1.0),
+                    egui::Align2::LEFT_CENTER,
+                    "♫ Audio",
+                    egui::FontId::proportional(10.0),
+                    Color32::from_gray(180),
+                );
+
+                // Draw audio track lanes.
+                for clip in &project.audio_clips {
+                    let track_y = origin.y + audio_y + clip.track as f32 * (TRACK_HEIGHT + GAP);
+                    self.draw_audio_clip_block(
+                        &painter,
+                        clip,
+                        origin.x,
+                        track_y,
+                        available_width,
+                        TRACK_HEIGHT,
+                        duration,
+                    );
+                }
             }
 
             // Draw playhead.
@@ -98,7 +234,7 @@ impl TimelinePanel {
                 let fraction = (current_time / duration) as f32;
                 let playhead_x = origin.x + fraction * available_width;
                 let playhead_top = origin.y;
-                let playhead_bottom = origin.y + total_height;
+                let playhead_bottom = origin.y + layout.total_height;
                 painter.line_segment(
                     [
                         Pos2::new(playhead_x, playhead_top),
@@ -171,7 +307,7 @@ impl TimelinePanel {
         }
     }
 
-    /// Draw a single clip block as a colored rectangle.
+    /// Draw a single video clip block as a colored rectangle.
     #[allow(clippy::too_many_arguments)]
     fn draw_clip_block(
         &self,
@@ -188,7 +324,7 @@ impl TimelinePanel {
         let x = origin_x + start_frac * total_width;
         let w = (end_frac - start_frac) * total_width;
 
-        let color = self.track_colors[clip.track as usize % self.track_colors.len()];
+        let color = self.video_colors[clip.track as usize % self.video_colors.len()];
         let rect = Rect::from_min_size(Pos2::new(x, track_y), Vec2::new(w.max(2.0), track_height));
         painter.rect_filled(rect, 3.0, color);
 
@@ -202,5 +338,277 @@ impl TimelinePanel {
                 Color32::WHITE,
             );
         }
+    }
+
+    /// Draw a single audio clip block as a colored rectangle with volume indicator.
+    ///
+    /// Audio blocks use the audio color palette and apply volume-based opacity
+    /// via `Color32::linear_multiply`. The label shows volume percentage when
+    /// below 100%.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_audio_clip_block(
+        &self,
+        painter: &egui::Painter,
+        clip: &AudioClipDef,
+        origin_x: f32,
+        track_y: f32,
+        total_width: f32,
+        track_height: f32,
+        duration: f64,
+    ) {
+        let start_frac = (clip.start_time / duration) as f32;
+        let end_frac = (clip.end_time / duration) as f32;
+        let x = origin_x + start_frac * total_width;
+        let w = (end_frac - start_frac) * total_width;
+
+        let base_color = self.audio_colors[clip.track as usize % self.audio_colors.len()];
+        // Apply volume as opacity (volume=1.0 → fully opaque, volume=0.0 → very faint).
+        // Minimum 30% opacity so the block is always visible.
+        let alpha = 0.3 + 0.7 * clip.volume;
+        let color = base_color.linear_multiply(alpha);
+
+        let rect = Rect::from_min_size(Pos2::new(x, track_y), Vec2::new(w.max(2.0), track_height));
+        painter.rect_filled(rect, 3.0, color);
+
+        // Clip ID label with volume indicator.
+        if w > 30.0 {
+            let label = if (clip.volume - 1.0).abs() < f32::EPSILON {
+                clip.id.clone()
+            } else {
+                format!("{} ({:.0}%)", clip.id, clip.volume * 100.0)
+            };
+            painter.text(
+                rect.left_top() + Vec2::new(4.0, 2.0),
+                egui::Align2::LEFT_TOP,
+                &label,
+                egui::FontId::proportional(11.0),
+                Color32::WHITE,
+            );
+        } else if w > 20.0 {
+            // Narrow: just show the ID.
+            painter.text(
+                rect.left_top() + Vec2::new(4.0, 2.0),
+                egui::Align2::LEFT_TOP,
+                &clip.id,
+                egui::FontId::proportional(11.0),
+                Color32::WHITE,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper to create a project with the given video and audio clips.
+    fn build_project(
+        clips: Vec<ClipDef>,
+        audio_clips: Vec<AudioClipDef>,
+    ) -> ss_core::project::Project {
+        ss_core::project::Project {
+            resolution: [1920, 1080],
+            fps: 30,
+            duration: 10.0,
+            output: "out.mp4".to_string(),
+            background: [0x2c, 0x2e, 0x34, 0xff],
+            audio_clips,
+            encoding: ss_core::project::EncodingConfig::default(),
+            clips,
+        }
+    }
+
+    /// Helper to create a minimal video clip on the given track.
+    fn video_clip(id: &str, track: u32) -> ClipDef {
+        ClipDef {
+            id: id.to_string(),
+            clip_type: ss_core::clip::ClipType::Image {
+                path: format!("{id}.png"),
+            },
+            track,
+            start_time: 0.0,
+            end_time: 10.0,
+            z_index: 0,
+            sizing: ss_core::clip::Sizing::default(),
+            pivot: [0.5, 0.5],
+            animations: vec![],
+        }
+    }
+
+    /// Helper to create a minimal audio clip on the given track.
+    fn audio_clip(id: &str, track: u32, volume: f32) -> AudioClipDef {
+        AudioClipDef {
+            id: id.to_string(),
+            path: format!("{id}.mp3"),
+            track,
+            start_time: 0.0,
+            end_time: 10.0,
+            volume,
+        }
+    }
+
+    // ============================================================
+    // TimelineLayout unit tests
+    // ============================================================
+
+    #[test]
+    fn layout_with_no_audio_clips_has_no_separator() {
+        // Given a project with video clips but no audio clips.
+        let layout = TimelineLayout::compute(
+            2,
+            0,
+            TIME_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then there is no separator or audio section.
+        assert_eq!(layout.separator_y, None);
+        assert_eq!(layout.audio_origin_y, None);
+        assert_eq!(layout.num_audio_tracks, 0);
+        assert_eq!(layout.num_video_tracks, 2);
+    }
+
+    #[test]
+    fn layout_with_audio_clips_includes_audio_rows() {
+        // Given a project with 2 audio tracks.
+        let layout = TimelineLayout::compute(
+            1,
+            2,
+            TIME_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then the layout includes audio rows.
+        assert_eq!(layout.num_audio_tracks, 2);
+        assert!(layout.separator_y.is_some());
+        assert!(layout.audio_origin_y.is_some());
+    }
+
+    #[test]
+    fn layout_audio_tracks_are_below_video_tracks() {
+        // Given 1 video track and 2 audio tracks.
+        let layout = TimelineLayout::compute(
+            1,
+            2,
+            TIME_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // When checking positions.
+        let video_bottom = layout.video_origin_y + 1.0_f32 * (TRACK_HEIGHT + GAP);
+        let sep_y = layout.separator_y.unwrap();
+        let audio_y = layout.audio_origin_y.unwrap();
+
+        // Then separator is below video section.
+        assert!(sep_y >= video_bottom - GAP); // separator starts at video section end
+        // And audio section is below separator.
+        assert!(audio_y > sep_y + DEFAULT_SEPARATOR_HEIGHT);
+    }
+
+    #[test]
+    fn layout_with_no_clips_at_all() {
+        // Given a project with no clips at all (max_track defaults to 0 → 1 track).
+        let layout = TimelineLayout::compute(
+            1,
+            0,
+            TIME_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then there is 1 video track row and no audio.
+        assert_eq!(layout.num_video_tracks, 1);
+        assert_eq!(layout.num_audio_tracks, 0);
+        assert!(layout.separator_y.is_none());
+    }
+
+    #[test]
+    fn layout_single_audio_clip_on_track_0() {
+        // Given a single audio clip on track 0 (1 audio track).
+        let layout = TimelineLayout::compute(
+            1,
+            1,
+            TIME_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then positions are correct.
+        assert_eq!(layout.num_audio_tracks, 1);
+        let expected_audio_y =
+            TIME_BAR_HEIGHT + 1.0_f32 * (TRACK_HEIGHT + GAP) + DEFAULT_SEPARATOR_HEIGHT + GAP;
+        assert!((layout.audio_origin_y.unwrap() - expected_audio_y).abs() < f32::EPSILON);
+    }
+
+    // ============================================================
+    // Integration tests (show() does not panic)
+    // ============================================================
+
+    #[test]
+    fn show_with_audio_clips_does_not_panic() {
+        // Given a project with both video and audio clips.
+        let project = build_project(
+            vec![video_clip("bg", 0)],
+            vec![audio_clip("music", 0, 1.0), audio_clip("sfx", 1, 0.5)],
+        );
+
+        let mut panel = TimelinePanel::new();
+
+        // When showing the timeline.
+        let ctx = egui::Context::default();
+        let raw_input = egui::RawInput::default();
+        let _ = ctx.run(raw_input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                panel.show(ui, Some(&project), 2.5, 10.0);
+            });
+        });
+
+        // Then it does not panic.
+    }
+
+    #[test]
+    fn show_with_only_audio_clips_does_not_panic() {
+        // Given a project with audio clips but no video clips.
+        let project = build_project(vec![], vec![audio_clip("bg-music", 0, 0.8)]);
+
+        let mut panel = TimelinePanel::new();
+
+        // When showing the timeline.
+        let ctx = egui::Context::default();
+        let raw_input = egui::RawInput::default();
+        let _ = ctx.run(raw_input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                panel.show(ui, Some(&project), 0.0, 10.0);
+            });
+        });
+
+        // Then it does not panic.
+    }
+
+    #[test]
+    fn show_with_empty_audio_clips_does_not_panic() {
+        // Given a project with an empty audio_clips vec.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+
+        let mut panel = TimelinePanel::new();
+
+        // When showing the timeline.
+        let ctx = egui::Context::default();
+        let raw_input = egui::RawInput::default();
+        let _ = ctx.run(raw_input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                panel.show(ui, Some(&project), 5.0, 10.0);
+            });
+        });
+
+        // Then it does not panic.
     }
 }

@@ -103,3 +103,56 @@ pub fn mux_audio(
 
     Ok(())
 }
+
+/// Mux a pre-mixed audio file into a video file.
+///
+/// The audio file already has correct timing baked in (no offset needed).
+/// Runs:
+/// ```sh
+/// ffmpeg -y -i video.mp4 -i audio.wav -c:v copy -c:a aac -shortest output.mp4
+/// ```
+///
+/// # Arguments
+///
+/// * `video_path` - Path to the video-only file (first pass output)
+/// * `audio_path` - Path to the pre-mixed audio file
+/// * `output_path` - Path for the final muxed output
+///
+/// # Errors
+///
+/// Returns [`MuxError`] if ffmpeg fails to mux the audio.
+pub fn mux_mixed_audio(
+    video_path: &Path,
+    audio_path: &Path,
+    output_path: &Path,
+) -> Result<(), Report<MuxError>> {
+    debug!("audio mux started (pre-mixed)");
+
+    let status = Command::new("ffmpeg")
+        .arg("-y")
+        .arg("-i")
+        .arg(video_path)
+        .arg("-i")
+        .arg(audio_path)
+        .arg("-c:v")
+        .arg("copy")
+        .arg("-c:a")
+        .arg("aac")
+        .arg("-shortest")
+        .arg(output_path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .change_context(MuxError)
+        .attach("failed to launch ffmpeg for muxing")?;
+
+    if !status.success() {
+        return Err(
+            Report::new(MuxError).attach(format!("ffmpeg mux exited with status {}", status))
+        );
+    }
+
+    debug!("audio mux completed (pre-mixed)");
+
+    Ok(())
+}

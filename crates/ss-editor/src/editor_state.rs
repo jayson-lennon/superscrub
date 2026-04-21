@@ -179,7 +179,7 @@ mod tests {
             duration: 10.0,
             output: "out.mp4".into(),
             background: [0, 0, 0, 255],
-            audio: None,
+            audio_clips: vec![],
             encoding: EncodingConfig::default(),
             clips: vec![clip],
         }

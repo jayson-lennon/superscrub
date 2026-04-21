@@ -3,10 +3,16 @@
   "fps": 60,
   "duration": 30.0,
   "output": "output.mp4",
-  "audio": {
-    "path": "assets/song.mp3",
-    "start_time": 0.0
-  },
+  "audio_clips": [
+    {
+      "id": "background-music",
+      "path": "assets/song.mp3",
+      "track": 0,
+      "start_time": 0.0,
+      "end_time": 30.0,
+      "volume": 1.0
+    }
+  ],
   "clips": [
     {
       "id": "background",

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
-use ss_audio::{AudioEngineService, RodioAudioEngine};
+use ss_audio::{AudioEngineService, CpalAudioEngine};
 use ss_compositor::{CompositorRenderer, FilesystemImageProvider, FrameRendererService};
 use ss_editor::{AppConfig, EditorApp, Services};
 use ss_preview::{BackgroundPreviewCache, PreviewCacheService};
@@ -17,8 +17,9 @@ struct Args {
     project: PathBuf,
 }
 
-/// A no-op config watcher for now (actual `notify`-based implementation
-/// deferred until needed; Phase 4 uses this stub).
+/// A no-op config watcher. The editor creates a real `ProjectWatcher`
+/// which polls this via `ConfigWatcher::has_changed()`. A `notify`-based
+/// implementation can replace this when file system events are needed.
 struct StubConfigWatcher;
 
 impl ss_core::ConfigWatcher for StubConfigWatcher {
@@ -46,7 +47,7 @@ fn main() -> eframe::Result<()> {
     let project_path = args.project;
 
     // Create services.
-    let audio_engine = RodioAudioEngine::new().expect("failed to create audio engine");
+    let audio_engine = CpalAudioEngine::new().expect("failed to create audio engine");
     let audio = AudioEngineService::new(Arc::new(audio_engine));
 
     let image_provider = Arc::new(FilesystemImageProvider::new());
