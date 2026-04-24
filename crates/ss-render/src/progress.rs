@@ -123,36 +123,58 @@ mod tests {
 
     #[test]
     fn set_phase_updates_phase() {
+        // Given a tracker with 100 total frames.
         let tracker = ProgressTracker::new(100);
 
+        // When setting the phase to MuxingAudio.
         tracker.set_phase(RenderPhase::MuxingAudio);
+
+        // Then the snapshot reflects MuxingAudio.
         assert_eq!(tracker.snapshot().phase, RenderPhase::MuxingAudio);
 
+        // When setting the phase to Complete.
         tracker.set_phase(RenderPhase::Complete);
+
+        // Then the snapshot reflects Complete.
         assert_eq!(tracker.snapshot().phase, RenderPhase::Complete);
     }
 
     #[test]
     fn fraction_computes_correctly() {
+        // Given a tracker with 200 total frames.
         let tracker = ProgressTracker::new(200);
 
+        // When updating progress to 50 frames rendered.
         tracker.update(50, 1.0);
+
+        // Then the fraction is 0.25.
         assert!((tracker.snapshot().fraction() - 0.25).abs() < 0.001);
     }
 
     #[test]
     fn fraction_is_zero_when_no_frames() {
+        // Given a tracker with 0 total frames.
         let tracker = ProgressTracker::new(0);
-        assert_eq!(tracker.snapshot().fraction(), 0.0);
+
+        // When querying the progress fraction.
+        let fraction = tracker.snapshot().fraction();
+
+        // Then it is 0.0.
+        assert_eq!(fraction, 0.0);
     }
 
     #[test]
     fn is_complete_when_phase_is_complete() {
+        // Given a tracker in the initial Rendering phase.
         let tracker = ProgressTracker::new(10);
 
+        // Then it is not complete.
         assert!(!tracker.snapshot().is_complete());
 
+        // When setting the phase to Complete.
         tracker.set_phase(RenderPhase::Complete);
+
+        // Then it is complete.
         assert!(tracker.snapshot().is_complete());
     }
 
@@ -172,8 +194,14 @@ mod tests {
 
     #[test]
     fn cancelled_phase_is_not_complete() {
+        // Given a tracker with phase set to Cancelled.
         let tracker = ProgressTracker::new(10);
         tracker.set_phase(RenderPhase::Cancelled);
-        assert!(!tracker.snapshot().is_complete());
+
+        // When checking if the render is complete.
+        let complete = tracker.snapshot().is_complete();
+
+        // Then it is not considered complete.
+        assert!(!complete);
     }
 }

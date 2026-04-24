@@ -148,9 +148,15 @@ impl eframe::App for EditorApp {
                 let current_time = self.controller.state().current_time();
                 let duration = self.controller.state().duration();
 
-                if let Some(clicked_time) = self.timeline.show(ui, project, current_time, duration)
-                {
-                    self.controller.seek_to(clicked_time);
+                if let Some(action) = self.timeline.show(ui, project, current_time, duration) {
+                    let time = match action {
+                        crate::timeline_panel::TimelineAction::Click(t)
+                        | crate::timeline_panel::TimelineAction::Scrub(t) => t,
+                    };
+                    if matches!(action, crate::timeline_panel::TimelineAction::Scrub(_)) {
+                        self.controller.pause();
+                    }
+                    self.controller.seek_to(time);
                 }
             });
 

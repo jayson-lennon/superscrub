@@ -24,6 +24,14 @@ fn minimal_project() -> Project {
     }
 }
 
+fn wait_for_completion(cache: &BackgroundPreviewCache) {
+    let mut waited = 0;
+    while !cache.progress().is_complete() && waited < 100 {
+        std::thread::sleep(Duration::from_millis(50));
+        waited += 1;
+    }
+}
+
 fn create_cache() -> Arc<BackgroundPreviewCache> {
     let mut provider = FakeImageProvider::new();
     provider.insert_solid("test.png", 50, 50, [255, 0, 0, 255]);
@@ -43,11 +51,7 @@ fn background_cache_renders_frames() {
         .unwrap();
 
     // Then wait for completion and verify frame 0 exists.
-    let mut waited = 0;
-    while !cache.progress().is_complete() && waited < 100 {
-        std::thread::sleep(Duration::from_millis(50));
-        waited += 1;
-    }
+    wait_for_completion(&cache);
 
     let frame = cache.get_frame(0);
     assert!(frame.is_some());
@@ -71,11 +75,7 @@ fn background_cache_cancels_previous_render() {
         .unwrap();
 
     // Then wait for the second render to complete and verify dimensions.
-    let mut waited = 0;
-    while !cache.progress().is_complete() && waited < 100 {
-        std::thread::sleep(Duration::from_millis(50));
-        waited += 1;
-    }
+    wait_for_completion(&cache);
 
     let frame = cache.get_frame(0);
     assert!(frame.is_some());

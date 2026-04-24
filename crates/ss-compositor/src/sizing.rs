@@ -18,6 +18,27 @@ pub struct PlacedRect {
     pub h: f32,
 }
 
+impl PlacedRect {
+    /// Scale this placement from project-space to viewport-space.
+    ///
+    /// Multiplies all fields by the ratio `(viewport_size / project_resolution)`.
+    /// When viewport equals project resolution, this is an identity transform.
+    pub fn scale_to_viewport(
+        &self,
+        project_resolution: (u32, u32),
+        viewport_size: (u32, u32),
+    ) -> PlacedRect {
+        let sx = viewport_size.0 as f32 / project_resolution.0 as f32;
+        let sy = viewport_size.1 as f32 / project_resolution.1 as f32;
+        PlacedRect {
+            x: self.x * sx,
+            y: self.y * sy,
+            w: self.w * sx,
+            h: self.h * sy,
+        }
+    }
+}
+
 /// Compute the base placement rect for a clip given its sizing mode,
 /// the source image dimensions, and the canvas resolution.
 pub fn compute_placement(
@@ -119,7 +140,7 @@ mod tests {
     use ss_core::clip::{FitAnchor, FitMode, Sizing};
 
     #[test]
-    fn natural_sizing_returns_image_dimensions() {
+    fn natural_sizing_returns_image_dimensions_at_origin() {
         // Given a Natural sizing mode.
         let sizing = Sizing::Natural;
 
@@ -127,18 +148,14 @@ mod tests {
         let result = compute_placement(&sizing, (200, 100), (1920, 1080));
 
         // Then the placement is at (0, 0) with the image's natural dimensions.
+        assert!((result.x - 0.0).abs() < 1e-5);
+        assert!((result.y - 0.0).abs() < 1e-5);
         assert!((result.w - 200.0).abs() < 1e-5);
+        assert!((result.h - 100.0).abs() < 1e-5);
     }
 
     #[test]
-    fn natural_sizing_position_is_origin() {
-        let sizing = Sizing::Natural;
-        let result = compute_placement(&sizing, (200, 100), (1920, 1080));
-        assert!((result.x - 0.0).abs() < 1e-5 && (result.y - 0.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn explicit_sizing_returns_given_dimensions() {
+    fn explicit_sizing_returns_given_dimensions_at_origin() {
         // Given an Explicit sizing of 800x600.
         let sizing = Sizing::Explicit {
             width: 800,
@@ -148,118 +165,30 @@ mod tests {
         // When computing placement.
         let result = compute_placement(&sizing, (200, 100), (1920, 1080));
 
-        // Then the placement has the explicit dimensions.
-        assert!((result.w - 800.0).abs() < 1e-5 && (result.h - 600.0).abs() < 1e-5);
+        // Then the placement is at (0, 0) with the explicit dimensions.
+        assert!((result.x - 0.0).abs() < 1e-5);
+        assert!((result.y - 0.0).abs() < 1e-5);
+        assert!((result.w - 800.0).abs() < 1e-5);
+        assert!((result.h - 600.0).abs() < 1e-5);
     }
 
     #[test]
-    fn explicit_sizing_position_is_origin() {
-        let sizing = Sizing::Explicit {
-            width: 800,
-            height: 600,
-        };
-        let result = compute_placement(&sizing, (200, 100), (1920, 1080));
-        assert!((result.x - 0.0).abs() < 1e-5 && (result.y - 0.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn scale_sizing_multiplies_dimensions() {
+    fn scale_sizing_multiplies_dimensions_at_origin() {
         // Given a Scale sizing of 2.0.
         let sizing = Sizing::Scale(2.0);
 
         // When computing placement for a 100x50 image.
         let result = compute_placement(&sizing, (100, 50), (1920, 1080));
 
-        // Then the dimensions are doubled.
-        assert!((result.w - 200.0).abs() < 1e-5 && (result.h - 100.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn scale_sizing_position_is_origin() {
-        let sizing = Sizing::Scale(1.5);
-        let result = compute_placement(&sizing, (100, 50), (1920, 1080));
-        assert!((result.x - 0.0).abs() < 1e-5 && (result.y - 0.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn fit_rect_cover_same_aspect_fills_rect() {
-        // Given a FitRect Cover with a 200x100 rect and same-aspect image.
-        let sizing = Sizing::FitRect {
-            x: 0,
-            y: 0,
-            w: 200,
-            h: 100,
-            mode: FitMode::Cover,
-            anchor: FitAnchor::Center,
-        };
-
-        // When computing placement for a 400x200 image (same aspect).
-        let result = compute_placement(&sizing, (400, 200), (1920, 1080));
-
-        // Then the result fills the rect exactly.
-        assert!((result.w - 200.0).abs() < 1e-5 && (result.h - 100.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn fit_rect_cover_wider_image_scales_to_height() {
-        // Given a FitRect Cover with a 100x100 rect and a wider image (200x100).
-        let sizing = Sizing::FitRect {
-            x: 0,
-            y: 0,
-            w: 100,
-            h: 100,
-            mode: FitMode::Cover,
-            anchor: FitAnchor::Center,
-        };
-
-        // When computing placement for a 200x100 image.
-        let result = compute_placement(&sizing, (200, 100), (1920, 1080));
-
-        // Then the image scales to cover the rect height (scaled to 200x100),
-        // wider than the rect, centered horizontally.
+        // Then the placement is at (0, 0) with doubled dimensions.
+        assert!((result.x - 0.0).abs() < 1e-5);
+        assert!((result.y - 0.0).abs() < 1e-5);
         assert!((result.w - 200.0).abs() < 1e-5);
+        assert!((result.h - 100.0).abs() < 1e-5);
     }
 
     #[test]
-    fn fit_rect_cover_taller_image_scales_to_width() {
-        // Given a FitRect Cover with a 100x100 rect and a taller image (100x200).
-        let sizing = Sizing::FitRect {
-            x: 0,
-            y: 0,
-            w: 100,
-            h: 100,
-            mode: FitMode::Cover,
-            anchor: FitAnchor::Center,
-        };
-
-        // When computing placement for a 100x200 image.
-        let result = compute_placement(&sizing, (100, 200), (1920, 1080));
-
-        // Then the image scales to cover the rect width (scaled to 100x200),
-        // taller than the rect, centered vertically.
-        assert!((result.h - 200.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn fit_rect_contain_same_aspect_fills_rect() {
-        // Given a FitRect Contain with same-aspect image.
-        let sizing = Sizing::FitRect {
-            x: 0,
-            y: 0,
-            w: 200,
-            h: 100,
-            mode: FitMode::Contain,
-            anchor: FitAnchor::Center,
-        };
-
-        let result = compute_placement(&sizing, (400, 200), (1920, 1080));
-
-        // Same aspect → fills exactly.
-        assert!((result.w - 200.0).abs() < 1e-5 && (result.h - 100.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn fit_rect_contain_wider_image_scales_to_width() {
+    fn fit_rect_contain_wider_image_fits_to_width_and_centers_vertically() {
         // Given a FitRect Contain with a 100x100 rect and a wider image (200x100).
         let sizing = Sizing::FitRect {
             x: 0,
@@ -270,42 +199,60 @@ mod tests {
             anchor: FitAnchor::Center,
         };
 
+        // When computing placement.
         let result = compute_placement(&sizing, (200, 100), (1920, 1080));
 
-        // Contain scales to fit width → 100x50, centered vertically.
-        assert!((result.w - 100.0).abs() < 1e-5 && (result.h - 50.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn fit_rect_contain_wider_image_is_centered_vertically() {
-        let sizing = Sizing::FitRect {
-            x: 0,
-            y: 0,
-            w: 100,
-            h: 100,
-            mode: FitMode::Contain,
-            anchor: FitAnchor::Center,
-        };
-        let result = compute_placement(&sizing, (200, 100), (1920, 1080));
-
-        // Centered: y = (100 - 50) / 2 = 25.
+        // Then the image scales to fit width (100x50), centered vertically at y=25.
+        assert!((result.w - 100.0).abs() < 1e-5);
+        assert!((result.h - 50.0).abs() < 1e-5);
+        assert!((result.x - 0.0).abs() < 1e-5);
         assert!((result.y - 25.0).abs() < 1e-5);
     }
 
-    #[test]
-    fn fit_rect_contain_taller_image_is_centered_horizontally() {
+    #[rstest::rstest]
+    #[case::cover_same_aspect(
+        FitMode::Cover, (400, 200), 0, 0, 200, 100,
+        0.0, 0.0, 200.0, 100.0,
+    )]
+    #[case::contain_same_aspect(
+        FitMode::Contain, (400, 200), 0, 0, 200, 100,
+        0.0, 0.0, 200.0, 100.0,
+    )]
+    #[case::cover_wider(
+        FitMode::Cover, (200, 100), 0, 0, 100, 100,
+        -50.0, 0.0, 200.0, 100.0,
+    )]
+    #[case::cover_taller(
+        FitMode::Cover, (100, 200), 0, 0, 100, 100,
+        0.0, -50.0, 100.0, 200.0,
+    )]
+    #[case::contain_taller(
+        FitMode::Contain, (100, 200), 0, 0, 100, 100,
+        25.0, 0.0, 50.0, 100.0,
+    )]
+    fn fit_rect_scales_and_positions_correctly(
+        #[case] mode: FitMode,
+        #[case] image_dims: (u32, u32),
+        #[case] rx: i32, #[case] ry: i32,
+        #[case] rw: u32, #[case] rh: u32,
+        #[case] expected_x: f32, #[case] expected_y: f32,
+        #[case] expected_w: f32, #[case] expected_h: f32,
+    ) {
+        // Given a FitRect with the given mode, rect dimensions, and image.
         let sizing = Sizing::FitRect {
-            x: 0,
-            y: 0,
-            w: 100,
-            h: 100,
-            mode: FitMode::Contain,
+            x: rx, y: ry, w: rw, h: rh,
+            mode,
             anchor: FitAnchor::Center,
         };
-        let result = compute_placement(&sizing, (100, 200), (1920, 1080));
 
-        // Scales to fit height → 50x100, centered: x = (100 - 50) / 2 = 25.
-        assert!((result.x - 25.0).abs() < 1e-5);
+        // When computing placement.
+        let result = compute_placement(&sizing, image_dims, (1920, 1080));
+
+        // Then the placement matches expected values.
+        assert!((result.x - expected_x).abs() < 1e-5, "x: got {}", result.x);
+        assert!((result.y - expected_y).abs() < 1e-5, "y: got {}", result.y);
+        assert!((result.w - expected_w).abs() < 1e-5, "w: got {}", result.w);
+        assert!((result.h - expected_h).abs() < 1e-5, "h: got {}", result.h);
     }
 
     #[test]
@@ -340,5 +287,89 @@ mod tests {
         // 400x100 image into 100x50 Cover. Scale to width: 100/400=0.25, height: 50/100=0.5. Max=0.5.
         // Scaled: 200x50. Offset x = 10 + (100-200)/2 = 10 - 50 = -40.
         assert!((result.x - (-40.0)).abs() < 1e-5);
+    }
+
+    // --- scale_to_viewport tests ---
+
+    use super::PlacedRect;
+
+    #[test]
+    fn scale_to_viewport_identity_when_resolutions_match() {
+        // Given a placement and matching project/viewport resolutions.
+        let placed = PlacedRect {
+            x: 10.0,
+            y: 20.0,
+            w: 100.0,
+            h: 50.0,
+        };
+
+        // When scaling to viewport with the same resolution.
+        let result = placed.scale_to_viewport((200, 100), (200, 100));
+
+        // Then the placement is unchanged.
+        assert!((result.x - 10.0).abs() < 1e-5);
+        assert!((result.y - 20.0).abs() < 1e-5);
+        assert!((result.w - 100.0).abs() < 1e-5);
+        assert!((result.h - 50.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn scale_to_viewport_halves_all_fields() {
+        // Given a placement in a 200x100 project.
+        let placed = PlacedRect {
+            x: 40.0,
+            y: 30.0,
+            w: 100.0,
+            h: 50.0,
+        };
+
+        // When scaling to a half-resolution viewport.
+        let result = placed.scale_to_viewport((200, 100), (100, 50));
+
+        // Then all fields are halved.
+        assert!((result.x - 20.0).abs() < 1e-5);
+        assert!((result.y - 15.0).abs() < 1e-5);
+        assert!((result.w - 50.0).abs() < 1e-5);
+        assert!((result.h - 25.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn scale_to_viewport_anisotropic_scales_each_axis_independently() {
+        // Given a placement in a 200x100 project.
+        let placed = PlacedRect {
+            x: 40.0,
+            y: 20.0,
+            w: 100.0,
+            h: 50.0,
+        };
+
+        // When scaling to a 100x200 viewport (x halved, y doubled).
+        let result = placed.scale_to_viewport((200, 100), (100, 200));
+
+        // Then x/w are halved and y/h are doubled.
+        assert!((result.x - 20.0).abs() < 1e-5);
+        assert!((result.y - 40.0).abs() < 1e-5);
+        assert!((result.w - 50.0).abs() < 1e-5);
+        assert!((result.h - 100.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn scale_to_viewport_fit_rect_with_offset() {
+        // Given a FitRect placement at (100, 50) with size 640x480 in a 1920x1080 project.
+        let placed = PlacedRect {
+            x: 100.0,
+            y: 50.0,
+            w: 640.0,
+            h: 480.0,
+        };
+
+        // When scaling to half resolution (960x540).
+        let result = placed.scale_to_viewport((1920, 1080), (960, 540));
+
+        // Then offset and size are both halved.
+        assert!((result.x - 50.0).abs() < 1e-5);
+        assert!((result.y - 25.0).abs() < 1e-5);
+        assert!((result.w - 320.0).abs() < 1e-5);
+        assert!((result.h - 240.0).abs() < 1e-5);
     }
 }

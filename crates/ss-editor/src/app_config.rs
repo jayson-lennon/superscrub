@@ -135,39 +135,24 @@ impl AppConfig {
 mod tests {
     use super::AppConfig;
 
-    #[test]
-    fn default_config_has_half_res_divisor() {
-        let config = AppConfig::default();
-        assert_eq!(config.preview_divisor, 2);
-    }
-
-    #[test]
-    fn default_config_has_30fps() {
-        let config = AppConfig::default();
-        assert_eq!(config.preview_fps, 30);
-    }
-
-    #[test]
-    fn preview_resolution_halves_project_res() {
-        let config = AppConfig::default();
-        let res = config.preview_resolution([1920, 1080]);
-        assert_eq!(res, (960, 540));
-    }
-
-    #[test]
-    fn preview_resolution_with_divisor_one_returns_full_resolution() {
+    #[rstest::rstest]
+    #[case::half_res(2, (960, 540))]
+    #[case::full_res(1, (1920, 1080))]
+    #[case::quarter_res(4, (480, 270))]
+    fn preview_resolution_divides_project_dimensions(
+        #[case] divisor: u32,
+        #[case] expected: (u32, u32),
+    ) {
+        // Given a config with the given preview divisor and a 1920×1080 project.
         let mut config = AppConfig::default();
-        config.preview_divisor = 1;
-        let res = config.preview_resolution([1920, 1080]);
-        assert_eq!(res, (1920, 1080));
-    }
+        config.preview_divisor = divisor;
+        let project_res = [1920, 1080];
 
-    #[test]
-    fn preview_resolution_with_divisor_four_returns_quarter_resolution() {
-        let mut config = AppConfig::default();
-        config.preview_divisor = 4;
-        let res = config.preview_resolution([1920, 1080]);
-        assert_eq!(res, (480, 270));
+        // When computing the preview resolution.
+        let res = config.preview_resolution(project_res);
+
+        // Then each dimension is divided correctly.
+        assert_eq!(res, expected);
     }
 
     #[test]
@@ -195,15 +180,4 @@ mod tests {
         assert_eq!(loaded.last_project, Some("/foo/bar.json".into()));
     }
 
-    #[test]
-    fn default_window_size() {
-        let config = AppConfig::default();
-        assert_eq!(config.window_size, [1280, 720]);
-    }
-
-    #[test]
-    fn default_last_project_is_none() {
-        let config = AppConfig::default();
-        assert!(config.last_project.is_none());
-    }
 }

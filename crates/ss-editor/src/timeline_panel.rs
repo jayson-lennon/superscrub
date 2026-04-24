@@ -2,7 +2,7 @@
 //!
 //! The timeline shows one row per track, with clip blocks as colored rectangles
 //! positioned according to their start/end times. A vertical red playhead line
-//! shows the current position. Click-to-seek is supported.
+//! shows the current position. Click-to-seek and click+drag scrub are supported.
 //!
 //! Video tracks occupy the top section. A separator with a "♫ Audio" label
 //! divides video from audio tracks below. Audio clip blocks use a distinct
@@ -78,6 +78,15 @@ impl TimelineLayout {
     }
 }
 
+/// Action returned by the timeline panel each frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TimelineAction {
+    /// User clicked (press + release without significant movement). Seek to time.
+    Click(f64),
+    /// User is holding the pointer down (scrub in progress). Seek to time every frame.
+    Scrub(f64),
+}
+
 /// Manages the timeline panel display.
 pub struct TimelinePanel {
     /// Video track colors (cycled for visual distinction).
@@ -86,6 +95,8 @@ pub struct TimelinePanel {
     audio_colors: Vec<Color32>,
     /// Separator height (thin line between video and audio sections).
     separator_height: f32,
+    /// Whether a scrub (click+drag) operation is in progress.
+    is_scrubbing: bool,
 }
 
 impl Default for TimelinePanel {
@@ -108,6 +119,7 @@ impl Default for TimelinePanel {
                 Color32::from_rgb(110, 130, 150), // Slate
             ],
             separator_height: DEFAULT_SEPARATOR_HEIGHT,
+            is_scrubbing: false,
         }
     }
 }
@@ -120,15 +132,17 @@ impl TimelinePanel {
 
     /// Show the timeline panel.
     ///
-    /// Returns the clicked time position if the user clicked on the timeline area.
+    /// Returns a [`TimelineAction`] if the user interacted with the timeline:
+    /// [`TimelineAction::Scrub`] while the pointer is held down, or
+    /// [`TimelineAction::Click`] on release without significant movement.
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
         project: Option<&Project>,
         current_time: f64,
         duration: f64,
-    ) -> Option<f64> {
-        let mut clicked_time = None;
+    ) -> Option<TimelineAction> {
+        let mut action = None;
 
         ui.vertical(|ui| {
             ui.label(RichText::new("Timeline").size(14.0).strong());
@@ -244,16 +258,54 @@ impl TimelinePanel {
                 );
             }
 
-            // Handle click-to-seek.
-            if response.clicked()
-                && let Some(pos) = response.interact_pointer_pos()
-            {
-                let fraction = ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
-                clicked_time = Some(fraction as f64 * duration);
+            // Handle scrub (pointer held down) and click-to-seek.
+            let primary_down = response.ctx.input(|i| i.pointer.primary_down());
+            if self.is_scrubbing {
+                if primary_down {
+                    // Continue scrubbing — use pointer position directly.
+                    if let Some(pos) = response.ctx.input(|i| i.pointer.interact_pos()) {
+                        let fraction =
+                            ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
+                        let time = fraction as f64 * duration;
+                        action = Some(TimelineAction::Scrub(time));
+                    }
+                } else {
+                    // Button released — scrub ended. Check if it was a click
+                    // (press + release without significant movement).
+                    self.is_scrubbing = false;
+                    if response.clicked() {
+                        if let Some(pos) = response.interact_pointer_pos() {
+                            let fraction =
+                                ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
+                            let time = fraction as f64 * duration;
+                            action = Some(TimelineAction::Click(time));
+                        }
+                    }
+                }
+            } else if response.is_pointer_button_down_on() {
+                if let Some(pos) = response.interact_pointer_pos() {
+                    let fraction = ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
+                    let time = fraction as f64 * duration;
+                    self.is_scrubbing = true;
+                    action = Some(TimelineAction::Scrub(time));
+                }
+            } else if response.clicked() {
+                if let Some(pos) = response.interact_pointer_pos() {
+                    let fraction = ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
+                    let time = fraction as f64 * duration;
+                    action = Some(TimelineAction::Click(time));
+                }
+            }
+
+            // Set cursor icon.
+            if self.is_scrubbing {
+                response.ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+            } else if response.hovered() {
+                response.ctx.set_cursor_icon(egui::CursorIcon::Grab);
             }
         });
 
-        clicked_time
+        action
     }
 
     /// Draw tick marks on the time ruler.
@@ -552,63 +604,189 @@ mod tests {
     // Integration tests (show() does not panic)
     // ============================================================
 
-    #[test]
-    fn show_with_audio_clips_does_not_panic() {
-        // Given a project with both video and audio clips.
-        let project = build_project(
-            vec![video_clip("bg", 0)],
-            vec![audio_clip("music", 0, 1.0), audio_clip("sfx", 1, 0.5)],
-        );
-
+    #[rstest::rstest]
+    #[case::with_audio_clips(
+        vec![video_clip("bg", 0)],
+        vec![audio_clip("music", 0, 1.0), audio_clip("sfx", 1, 0.5)],
+        2.5,
+    )]
+    #[case::only_audio_clips(
+        vec![],
+        vec![audio_clip("bg-music", 0, 0.8)],
+        0.0,
+    )]
+    #[case::empty_audio_clips(
+        vec![video_clip("bg", 0)],
+        vec![],
+        5.0,
+    )]
+    fn show_does_not_panic(
+        #[case] clips: Vec<ClipDef>,
+        #[case] audio_clips: Vec<AudioClipDef>,
+        #[case] current_time: f64,
+    ) {
+        // Given a project with the specified clips.
+        let project = build_project(clips, audio_clips);
         let mut panel = TimelinePanel::new();
 
         // When showing the timeline.
         let ctx = egui::Context::default();
-        let raw_input = egui::RawInput::default();
-        let _ = ctx.run(raw_input, |ctx| {
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                panel.show(ui, Some(&project), 2.5, 10.0);
+                panel.show(ui, Some(&project), current_time, 10.0);
             });
         });
 
         // Then it does not panic.
     }
 
-    #[test]
-    fn show_with_only_audio_clips_does_not_panic() {
-        // Given a project with audio clips but no video clips.
-        let project = build_project(vec![], vec![audio_clip("bg-music", 0, 0.8)]);
+    // ============================================================
+    // TimelineAction interaction tests
+    // ============================================================
 
-        let mut panel = TimelinePanel::new();
-
-        // When showing the timeline.
-        let ctx = egui::Context::default();
-        let raw_input = egui::RawInput::default();
+    /// Run one frame of the timeline panel and return the action.
+    fn run_timeline_frame(
+        ctx: &egui::Context,
+        panel: &mut TimelinePanel,
+        project: &Project,
+        raw_input: egui::RawInput,
+    ) -> Option<TimelineAction> {
+        let mut action = None;
         let _ = ctx.run(raw_input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                panel.show(ui, Some(&project), 0.0, 10.0);
+                action = panel.show(ui, Some(project), 5.0, 10.0);
             });
         });
+        action
+    }
 
-        // Then it does not panic.
+    /// Run a setup frame so egui learns the widget layout before we send
+    /// pointer events. Without this, egui cannot match pointer events to
+    /// widgets on the very first frame.
+    fn setup_frame(
+        ctx: &egui::Context,
+        panel: &mut TimelinePanel,
+        project: &Project,
+    ) {
+        let _ = run_timeline_frame(ctx, panel, project, egui::RawInput::default());
+    }
+
+    fn pointer_press_at(x: f32, y: f32) -> egui::RawInput {
+        egui::RawInput {
+            events: vec![
+                egui::Event::PointerMoved(egui::Pos2::new(x, y)),
+                egui::Event::PointerButton {
+                    pos: egui::Pos2::new(x, y),
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::default(),
+                },
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn pointer_release_at(x: f32, y: f32) -> egui::RawInput {
+        egui::RawInput {
+            events: vec![egui::Event::PointerButton {
+                pos: egui::Pos2::new(x, y),
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::default(),
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn pointer_move_to(x: f32, y: f32) -> egui::RawInput {
+        egui::RawInput {
+            events: vec![egui::Event::PointerMoved(egui::Pos2::new(x, y))],
+            ..Default::default()
+        }
     }
 
     #[test]
-    fn show_with_empty_audio_clips_does_not_panic() {
-        // Given a project with an empty audio_clips vec.
+    fn show_returns_none_when_no_pointer_interaction() {
+        // Given a project and timeline panel with a setup frame.
         let project = build_project(vec![video_clip("bg", 0)], vec![]);
-
         let mut panel = TimelinePanel::new();
-
-        // When showing the timeline.
         let ctx = egui::Context::default();
-        let raw_input = egui::RawInput::default();
-        let _ = ctx.run(raw_input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                panel.show(ui, Some(&project), 5.0, 10.0);
-            });
-        });
+        setup_frame(&ctx, &mut panel, &project);
 
-        // Then it does not panic.
+        // When showing the timeline with no pointer events.
+        let action = run_timeline_frame(&ctx, &mut panel, &project, egui::RawInput::default());
+
+        // Then no action is returned.
+        assert_eq!(action, None);
+    }
+
+    #[test]
+    fn show_returns_scrub_while_pointer_is_held_down() {
+        // Given a project and timeline panel with a setup frame.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let mut panel = TimelinePanel::new();
+        let ctx = egui::Context::default();
+        setup_frame(&ctx, &mut panel, &project);
+
+        // When pressing the pointer at x=250 in a ~10000px-wide panel (2.5% → time ~0.25).
+        let raw_input = pointer_press_at(250.0, 50.0);
+        let action = run_timeline_frame(&ctx, &mut panel, &project, raw_input);
+
+        // Then a Scrub action is returned.
+        assert!(matches!(action, Some(TimelineAction::Scrub(_))));
+        if let Some(TimelineAction::Scrub(time)) = action {
+            assert!((0.0..=10.0).contains(&time), "time should be in [0, 10], got {time}");
+        }
+    }
+
+    #[test]
+    fn show_returns_none_after_scrub_releases() {
+        // Given a panel with a setup frame.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let mut panel = TimelinePanel::new();
+        let ctx = egui::Context::default();
+        setup_frame(&ctx, &mut panel, &project);
+
+        // Frame 1: press to start scrub.
+        let raw_press = pointer_press_at(250.0, 50.0);
+        let action = run_timeline_frame(&ctx, &mut panel, &project, raw_press);
+        assert!(matches!(action, Some(TimelineAction::Scrub(_))));
+
+        // Frame 2: drag to a new position (still holding).
+        let raw_drag = pointer_move_to(400.0, 50.0);
+        let action = run_timeline_frame(&ctx, &mut panel, &project, raw_drag);
+        assert!(matches!(action, Some(TimelineAction::Scrub(_))));
+
+        // Frame 3: release after drag.
+        let raw_release = pointer_release_at(400.0, 50.0);
+        let action = run_timeline_frame(&ctx, &mut panel, &project, raw_release);
+
+        // Then no action is returned (drag was a scrub, not a click).
+        assert_eq!(action, None);
+    }
+
+    #[test]
+    fn show_returns_click_on_press_and_release_without_move() {
+        // Given a project and timeline panel with a setup frame.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let mut panel = TimelinePanel::new();
+        let ctx = egui::Context::default();
+        setup_frame(&ctx, &mut panel, &project);
+
+        // Frame 1: press.
+        let raw_press = pointer_press_at(250.0, 50.0);
+        let action = run_timeline_frame(&ctx, &mut panel, &project, raw_press);
+        // During press, Scrub is returned.
+        assert!(matches!(action, Some(TimelineAction::Scrub(_))));
+
+        // Frame 2: release at same position (no drag → counts as click).
+        let raw_release = pointer_release_at(250.0, 50.0);
+        let action = run_timeline_frame(&ctx, &mut panel, &project, raw_release);
+
+        // Then a Click action is returned.
+        assert!(matches!(action, Some(TimelineAction::Click(_))));
+        if let Some(TimelineAction::Click(time)) = action {
+            assert!((0.0..=10.0).contains(&time), "time should be in [0, 10], got {time}");
+        }
     }
 }

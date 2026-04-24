@@ -125,15 +125,25 @@ fn render_clip(
         .change_context(CompositorError)
         .attach(clip_def.id.clone())?;
 
-    // Compute base placement from sizing.
+    // Compute base placement from sizing (in project-space).
     let placement = compute_placement(
         &clip_def.sizing,
         (source_image.width(), source_image.height()),
         (project_resolution[0], project_resolution[1]),
     );
 
+    // Scale placement from project-space to viewport-space.
+    let viewport_scale = (
+        viewport.output_size.0 as f32 / project_resolution[0] as f32,
+        viewport.output_size.1 as f32 / project_resolution[1] as f32,
+    );
+    let placement = placement.scale_to_viewport(
+        (project_resolution[0], project_resolution[1]),
+        viewport.output_size,
+    );
+
     // Build the transform and warp the source image into a canvas-sized buffer.
-    let clip_layer = warp_clip(&source_image, &placement, &resolved, viewport);
+    let clip_layer = warp_clip(&source_image, &placement, &resolved, viewport, viewport_scale);
 
     // Alpha composite the clip onto the canvas.
     composite_onto(canvas, &clip_layer);
@@ -154,6 +164,7 @@ fn warp_clip(
     placement: &crate::sizing::PlacedRect,
     resolved: &ss_core::transform::ResolvedClip,
     viewport: &Viewport,
+    viewport_scale: (f32, f32),
 ) -> RgbaImage {
     let (out_w, out_h) = viewport.output_size;
 
@@ -181,8 +192,8 @@ fn warp_clip(
         .and_then(Projection::scale(resolved.scale.x, resolved.scale.y))
         .and_then(Projection::translate(pivot_x, pivot_y))
         .and_then(Projection::translate(
-            resolved.translate.x,
-            resolved.translate.y,
+            resolved.translate.x * viewport_scale.0,
+            resolved.translate.y * viewport_scale.1,
         ))
         .and_then(Projection::translate(
             viewport.camera_pan.0,

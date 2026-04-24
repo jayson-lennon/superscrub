@@ -91,6 +91,17 @@ pub fn write_wav(
 mod tests {
     use super::*;
 
+    fn write_to_temp(
+        samples: &[f32],
+        channels: u16,
+        sample_rate: u32,
+    ) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.wav");
+        write_wav(&path, samples, channels, sample_rate).unwrap();
+        (dir, path)
+    }
+
     fn read_wav_header(data: &[u8]) -> (u32, u16, u32, u32) {
         // Returns (file_size, channels, sample_rate, data_size)
         let riff = &data[0..4];
@@ -118,12 +129,10 @@ mod tests {
     #[test]
     fn write_wav_produces_valid_header() {
         // Given a set of samples.
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.wav");
         let samples = vec![0.0f32, 0.0, 0.0, 0.0]; // 2 stereo frames
 
         // When writing a WAV file.
-        write_wav(&path, &samples, 2, 44100).unwrap();
+        let (_dir, path) = write_to_temp(&samples, 2, 44100);
 
         // Then the file has a valid RIFF header with correct metadata.
         let data = std::fs::read(&path).unwrap();
@@ -137,12 +146,10 @@ mod tests {
     #[test]
     fn write_wav_clamps_samples() {
         // Given samples exceeding [-1.0, 1.0].
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("clamp.wav");
         let samples = vec![2.0f32, -2.0, 0.5];
 
         // When writing a WAV file.
-        write_wav(&path, &samples, 1, 44100).unwrap();
+        let (_dir, path) = write_to_temp(&samples, 1, 44100);
 
         // Then the written i16 values are clamped.
         let data = std::fs::read(&path).unwrap();
@@ -161,12 +168,10 @@ mod tests {
     #[test]
     fn write_wav_empty_samples_produces_header_only() {
         // Given no samples.
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("empty.wav");
         let samples: Vec<f32> = vec![];
 
         // When writing a WAV file.
-        write_wav(&path, &samples, 2, 44100).unwrap();
+        let (_dir, path) = write_to_temp(&samples, 2, 44100);
 
         // Then the file has the correct header with data_size=0.
         let data = std::fs::read(&path).unwrap();
@@ -180,12 +185,10 @@ mod tests {
     #[test]
     fn write_wav_roundtrip_preserves_sample_count() {
         // Given 100 samples.
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("roundtrip.wav");
         let samples: Vec<f32> = (0..100).map(|i| (i as f32 / 100.0) * 2.0 - 1.0).collect();
 
         // When writing a WAV file.
-        write_wav(&path, &samples, 2, 44100).unwrap();
+        let (_dir, path) = write_to_temp(&samples, 2, 44100);
 
         // Then the written file has exactly 100 i16 samples (200 bytes of PCM).
         let data = std::fs::read(&path).unwrap();

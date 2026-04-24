@@ -197,11 +197,12 @@ fn filesystem_provider_caches_second_request() {
     img.save(&img_path).expect("save");
 
     // When requesting the same image twice.
-    let _first = provider.get(&img_path).expect("first load");
-    let _second = provider.get(&img_path).expect("second load");
+    let first = provider.get(&img_path).expect("first load");
+    let second = provider.get(&img_path).expect("second load");
 
-    // Then both succeed (cache hit for second, no panic).
-    assert!(true, "cache roundtrip succeeded");
+    // Then both loads succeed and return images with matching dimensions.
+    assert_eq!(first.dimensions(), second.dimensions());
+    assert_eq!(first.dimensions(), (10, 10));
 }
 
 #[test]

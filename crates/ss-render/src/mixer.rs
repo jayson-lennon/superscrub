@@ -73,6 +73,7 @@ fn mix_single_clip(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
 
@@ -90,7 +91,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn mix_empty_clips_produces_silence() {
         // Given no clips and a 1-second duration.
         let clips: Vec<MixedClip> = vec![];
@@ -106,7 +106,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn mix_single_clip_copies_samples() {
         // Given one clip at start_time=0 with volume=1.0.
         let samples = vec![0.5, -0.3, 0.8, -0.1];
@@ -126,7 +125,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn mix_clip_with_volume_scales_samples() {
         // Given one clip at volume=0.5.
         let samples = vec![1.0, -1.0, 0.8, -0.8];
@@ -144,7 +142,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn mix_two_overlapping_clips_adds_samples() {
         // Given two clips at the same start_time.
         let clip_a = make_clip(vec![1.0, 0.0, 0.0, 0.0], 0.0, 1.0);
@@ -160,7 +157,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn mix_clip_with_start_time_offsets_correctly() {
         // Given a clip starting at a known offset.
         // Use a low sample rate so offset math is trivial.
@@ -181,7 +177,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn mix_clip_truncated_at_duration_boundary() {
         // Given a clip that extends beyond the output duration.
         // 10 Hz, 1 channel, 2-second output = 20 samples.

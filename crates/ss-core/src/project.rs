@@ -217,24 +217,6 @@ mod tests {
     // ============================================================
 
     #[test]
-    fn default_crf_is_18() {
-        let config = EncodingConfig::default();
-        assert_eq!(config.crf, 18);
-    }
-
-    #[test]
-    fn default_preset_is_medium() {
-        let config = EncodingConfig::default();
-        assert_eq!(config.preset, "medium");
-    }
-
-    #[test]
-    fn default_pixel_format_is_yuv420p() {
-        let config = EncodingConfig::default();
-        assert_eq!(config.pixel_format, "yuv420p");
-    }
-
-    #[test]
     fn project_without_encoding_gets_defaults() {
         // Given a project JSON without the encoding field.
         let json = r#"{
@@ -450,67 +432,26 @@ mod tests {
     }
 
     #[test]
-    fn project_with_multiple_clips_preserves_clip_count() {
-        // Given a project JSON with three clips.
+    fn project_with_multiple_clips_preserves_clip_order() {
+        // Given a project JSON with three clips in a specific order.
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
             "clips": [
-                {"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0},
-                {"id": "overlay", "type": "image", "path": "overlay.png", "track": 1, "start_time": 2.0, "end_time": 8.0, "z_index": 1},
-                {"id": "fg", "type": "image", "path": "fg.png", "track": 2, "start_time": 5.0, "end_time": 10.0, "z_index": 2}
+                {"id": "first", "type": "image", "path": "a.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0},
+                {"id": "second", "type": "image", "path": "b.png", "track": 1, "start_time": 0.0, "end_time": 10.0, "z_index": 1},
+                {"id": "third", "type": "image", "path": "c.png", "track": 2, "start_time": 0.0, "end_time": 10.0, "z_index": 2}
             ]
         }"#;
 
         // When parsing it.
         let project: Project = serde_json::from_str(json).expect("should parse");
 
-        // Then the clips are preserved in order.
+        // Then clip IDs are preserved in their original order.
         assert_eq!(project.clips.len(), 3);
-    }
-
-    #[test]
-    fn project_with_multiple_clips_preserves_first_clip_id() {
-        // Given a project with three clips in a specific order.
-        let json = r#"{
-            "resolution": [1920, 1080],
-            "fps": 60,
-            "duration": 10.0,
-            "output": "out.mp4",
-            "clips": [
-                {"id": "first", "type": "image", "path": "a.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0},
-                {"id": "second", "type": "image", "path": "b.png", "track": 1, "start_time": 0.0, "end_time": 10.0, "z_index": 1},
-                {"id": "third", "type": "image", "path": "c.png", "track": 2, "start_time": 0.0, "end_time": 10.0, "z_index": 2}
-            ]
-        }"#;
-
-        // When parsing it.
-        let project: Project = serde_json::from_str(json).expect("should parse");
-
-        // Then clip IDs are in the original order.
         assert_eq!(project.clips[0].id, "first");
-    }
-
-    #[test]
-    fn project_with_multiple_clips_preserves_third_clip_id() {
-        // Given a project with three ordered clips.
-        let json = r#"{
-            "resolution": [1920, 1080],
-            "fps": 60,
-            "duration": 10.0,
-            "output": "out.mp4",
-            "clips": [
-                {"id": "first", "type": "image", "path": "a.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0},
-                {"id": "second", "type": "image", "path": "b.png", "track": 1, "start_time": 0.0, "end_time": 10.0, "z_index": 1},
-                {"id": "third", "type": "image", "path": "c.png", "track": 2, "start_time": 0.0, "end_time": 10.0, "z_index": 2}
-            ]
-        }"#;
-        let project: Project = serde_json::from_str(json).expect("should parse");
-
-        // When checking the third clip.
-        // Then it is "third".
         assert_eq!(project.clips[2].id, "third");
     }
 

@@ -36,3 +36,4 @@ pub use editor_state::TransportState;
 pub use playback_controller::PlaybackController;
 pub use project_watcher::ProjectWatcher;
 pub use services::Services;
+pub use timeline_panel::TimelineAction;

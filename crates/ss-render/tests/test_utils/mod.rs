@@ -1,2 +1,3 @@
-pub mod fakes;
+//! Test utilities for ss-render.
+
 pub mod fixtures;
