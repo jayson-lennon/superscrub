@@ -85,6 +85,8 @@ impl EditorApp {
         let mut watcher = ProjectWatcher::new(services.watcher.clone());
         let _ = watcher.start_watching(&project_path);
 
+        let settings = SettingsPanel::new(&config);
+
         Ok(Self {
             controller,
             services,
@@ -93,7 +95,7 @@ impl EditorApp {
             viewport: ViewportPanel::new(),
             timeline: TimelinePanel::new(),
             transport: TransportPanel::new(),
-            settings: SettingsPanel::new(&AppConfig::default()),
+            settings,
         })
     }
 }

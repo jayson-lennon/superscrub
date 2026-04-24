@@ -11,8 +11,9 @@ use image::Rgba;
 use ss_compositor::{FakeImageProvider, FrameRenderer, ImageProvider, Viewport};
 use ss_core::animation::{AnimatableProperty, AnimationTrack};
 use ss_core::clip::Sizing;
+use ss_core::project::{EncodingConfig, Project};
 use ss_core::test_utils::fixtures::{build_image_clip, kf};
-use test_utils::fixtures::{PROJECT_FILE, build_project, create_renderer, render_frame};
+use test_utils::fixtures::{PROJECT_FILE, build_project, create_renderer, render_frame, render_frame_at_resolution};
 
 const RED: [u8; 4] = [255, 0, 0, 255];
 const GREEN: [u8; 4] = [0, 255, 0, 255];
@@ -280,6 +281,110 @@ fn clip_at_exact_start_time_is_active() {
     // Then the clip is active (red pixel at center).
     let pixel = pixel_color(&frame, 50, 50);
     assert_eq!(pixel[0], 255, "clip should be active at exact start time");
+}
+
+#[test]
+fn half_resolution_renders_entire_frame() {
+    // Given a 200×200 project with a single red clip filling the canvas.
+    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    clip.sizing = Sizing::Explicit {
+        width: 200,
+        height: 200,
+    };
+    let project = Project {
+        resolution: [200, 200],
+        fps: 30,
+        duration: 10.0,
+        output: "output.mp4".to_string(),
+        background: DEFAULT_BG,
+        audio_clips: vec![],
+        encoding: EncodingConfig::default(),
+        clips: vec![clip],
+    };
+    let mut provider = FakeImageProvider::new();
+    provider.insert_solid(RESOLVED_TEST, 200, 200, RED);
+    let provider = Arc::new(provider);
+
+    // When rendering at half resolution (100×100).
+    let frame = render_frame_at_resolution(&project, &provider, 5.0, (100, 100));
+
+    // Then the center pixel (50, 50) is red — the entire frame is visible, not cropped.
+    let pixel = pixel_color(&frame, 50, 50);
+    assert_eq!(pixel[0], 255, "center pixel should be red at half resolution");
+}
+
+#[test]
+fn quarter_resolution_renders_entire_frame() {
+    // Given a 200×200 project with a single red clip filling the canvas.
+    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    clip.sizing = Sizing::Explicit {
+        width: 200,
+        height: 200,
+    };
+    let project = Project {
+        resolution: [200, 200],
+        fps: 30,
+        duration: 10.0,
+        output: "output.mp4".to_string(),
+        background: DEFAULT_BG,
+        audio_clips: vec![],
+        encoding: EncodingConfig::default(),
+        clips: vec![clip],
+    };
+    let mut provider = FakeImageProvider::new();
+    provider.insert_solid(RESOLVED_TEST, 200, 200, RED);
+    let provider = Arc::new(provider);
+
+    // When rendering at quarter resolution (50×50).
+    let frame = render_frame_at_resolution(&project, &provider, 5.0, (50, 50));
+
+    // Then the center pixel (25, 25) is red — the entire frame is visible at quarter resolution.
+    let pixel = pixel_color(&frame, 25, 25);
+    assert_eq!(pixel[0], 255, "center pixel should be red at quarter resolution");
+}
+
+#[test]
+fn half_resolution_with_translate_animation_produces_correct_position() {
+    // Given a 200×200 project with a 100×100 red clip translated to x=100.
+    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    clip.sizing = Sizing::Explicit {
+        width: 100,
+        height: 100,
+    };
+    clip.animations = vec![AnimationTrack {
+        property: AnimatableProperty::TranslateX,
+        keyframes: vec![kf(0.0, 100.0), kf(10.0, 100.0)],
+    }];
+    let project = Project {
+        resolution: [200, 200],
+        fps: 30,
+        duration: 10.0,
+        output: "output.mp4".to_string(),
+        background: DEFAULT_BG,
+        audio_clips: vec![],
+        encoding: EncodingConfig::default(),
+        clips: vec![clip],
+    };
+    let mut provider = FakeImageProvider::new();
+    provider.insert_solid(RESOLVED_TEST, 100, 100, RED);
+    let provider = Arc::new(provider);
+
+    // When rendering at full resolution, pixel (25, 100) is background (left of the clip).
+    let full_frame = render_frame_at_resolution(&project, &provider, 5.0, (200, 200));
+    let full_pixel = pixel_color(&full_frame, 25, 100);
+    assert_eq!(
+        full_pixel, DEFAULT_BG,
+        "full-res pixel (25, 100) should be background (left of clip at x=100)"
+    );
+
+    // When rendering at half resolution, pixel (12, 50) is also background.
+    // The clip starts at project x=100, which scales to viewport x=50.
+    let half_frame = render_frame_at_resolution(&project, &provider, 5.0, (100, 100));
+    let half_pixel = pixel_color(&half_frame, 12, 50);
+    assert_eq!(
+        half_pixel, DEFAULT_BG,
+        "half-res pixel (12, 50) should be background (left of scaled clip at x=50)"
+    );
 }
 
 #[test]

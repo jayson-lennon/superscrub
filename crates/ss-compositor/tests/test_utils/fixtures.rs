@@ -45,3 +45,18 @@ pub fn render_frame(
         .render(project, project_file, time, &viewport)
         .expect("render should succeed")
 }
+
+/// Render a frame for the project at a custom viewport resolution.
+pub fn render_frame_at_resolution(
+    project: &Project,
+    provider: &Arc<FakeImageProvider>,
+    time: f64,
+    viewport_resolution: (u32, u32),
+) -> image::RgbaImage {
+    let renderer = create_renderer(Arc::clone(provider));
+    let viewport = Viewport::new_for_output(viewport_resolution);
+    let project_file = std::path::Path::new(PROJECT_FILE);
+    renderer
+        .render(project, project_file, time, &viewport)
+        .expect("render should succeed")
+}
