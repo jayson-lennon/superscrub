@@ -3,11 +3,14 @@
 //! Pure functions for converting between time positions and frame indices.
 //! These are used by both the background cache and the editor for scrubbing.
 
+use std::time::Duration;
+
 /// Convert a time in seconds to a frame index.
 ///
 /// Returns `None` if the time is negative or past the last frame.
-pub fn time_to_frame_index(time: f64, fps: u32, duration: f64) -> Option<usize> {
-    if time < 0.0 || time >= duration {
+pub fn time_to_frame_index(time: f64, fps: u32, duration: Duration) -> Option<usize> {
+    let duration_secs = duration.as_secs_f64();
+    if time < 0.0 || time >= duration_secs {
         return None;
     }
     let index = (time * fps as f64).floor() as usize;
@@ -21,8 +24,8 @@ pub fn frame_index_to_time(index: usize, fps: u32) -> f64 {
 }
 
 /// Total number of frames for a given duration at a given fps.
-pub fn total_frames(fps: u32, duration: f64) -> usize {
-    (duration * fps as f64).floor() as usize
+pub fn total_frames(fps: u32, duration: Duration) -> usize {
+    (duration.as_secs_f64() * fps as f64).floor() as usize
 }
 
 #[cfg(test)]
@@ -30,18 +33,20 @@ pub fn total_frames(fps: u32, duration: f64) -> usize {
 mod tests {
     use rstest::rstest;
 
+    use std::time::Duration;
+
     #[rstest]
-    #[case(0.0, 30, 10.0, Some(0))]
-    #[case(1.0, 30, 10.0, Some(30))]
-    #[case(9.999, 30, 10.0, Some(299))]
-    #[case(-1.0, 30, 10.0, None)]
-    #[case(-0.001, 30, 10.0, None)]
-    #[case(10.0, 30, 10.0, None)]
-    #[case(15.0, 30, 10.0, None)]
+    #[case(0.0, 30, Duration::from_secs_f64(10.0), Some(0))]
+    #[case(1.0, 30, Duration::from_secs_f64(10.0), Some(30))]
+    #[case(9.999, 30, Duration::from_secs_f64(10.0), Some(299))]
+    #[case(-1.0, 30, Duration::from_secs_f64(10.0), None)]
+    #[case(-0.001, 30, Duration::from_secs_f64(10.0), None)]
+    #[case(10.0, 30, Duration::from_secs_f64(10.0), None)]
+    #[case(15.0, 30, Duration::from_secs_f64(10.0), None)]
     fn time_to_frame_index(
         #[case] time: f64,
         #[case] fps: u32,
-        #[case] duration: f64,
+        #[case] duration: Duration,
         #[case] expected: Option<usize>,
     ) {
         assert_eq!(super::time_to_frame_index(time, fps, duration), expected);
@@ -55,9 +60,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case(30, 10.0, 300)]
-    #[case(30, 10.5, 315)]
-    fn total_frames(#[case] fps: u32, #[case] duration: f64, #[case] expected: usize) {
+    #[case(30, Duration::from_secs_f64(10.0), 300)]
+    #[case(30, Duration::from_secs_f64(10.5), 315)]
+    fn total_frames(#[case] fps: u32, #[case] duration: Duration, #[case] expected: usize) {
         assert_eq!(super::total_frames(fps, duration), expected);
     }
 }

@@ -138,7 +138,7 @@ impl eframe::App for EditorApp {
         egui::Panel::bottom("transport").show_inside(ui, |ui| {
             let transport = self.controller.state().transport_state();
             let current_time = self.controller.state().current_time();
-            let duration = self.controller.state().duration();
+            let duration = self.controller.state().duration().as_secs_f64();
 
             let actions = self.transport.show(ui, transport, current_time, duration);
             for action in actions {
@@ -155,11 +155,18 @@ impl eframe::App for EditorApp {
             .show_inside(ui, |ui| {
                 let project = self.controller.state().project();
                 let current_time = self.controller.state().current_time();
-                let duration = self.controller.state().duration();
+                let duration = self.controller.state().duration().as_secs_f64();
                 let cached_frames = self.controller.cached_frames();
                 let preview_fps = self.controller.preview_fps();
 
-                if let Some(action) = self.timeline.show(ui, project, current_time, duration, &cached_frames, preview_fps) {
+                if let Some(action) = self.timeline.show(
+                    ui,
+                    project,
+                    current_time,
+                    duration,
+                    &cached_frames,
+                    preview_fps,
+                ) {
                     let time = match action {
                         crate::timeline_panel::TimelineAction::Click(t)
                         | crate::timeline_panel::TimelineAction::Scrub(t) => t,

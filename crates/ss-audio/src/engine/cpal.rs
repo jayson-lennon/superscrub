@@ -264,7 +264,7 @@ impl AudioEngine for CpalAudioEngine {
         let clip = LoadedAudioClip {
             audio: decoded,
             start_time: 0.0,
-            end_time: duration,
+            end_time: duration.as_secs_f64(),
             volume: 1.0,
         };
 
@@ -336,12 +336,12 @@ impl AudioEngine for CpalAudioEngine {
         self.state.read_position_secs()
     }
 
-    fn duration(&self) -> f64 {
+    fn duration(&self) -> std::time::Duration {
         let clips = self.state.clips.read();
         if clips.is_empty() {
-            return 0.0;
+            return std::time::Duration::ZERO;
         }
-        clips.iter().map(|c| c.end_time).fold(0.0f64, f64::max)
+        std::time::Duration::from_secs_f64(clips.iter().map(|c| c.end_time).fold(0.0f64, f64::max))
     }
 
     fn state(&self) -> AudioPlaybackState {
@@ -368,7 +368,7 @@ mod tests {
     // Helper: create DecodedAudio directly (no file I/O needed).
     fn make_decoded_audio(samples: Vec<f32>, channels: u16, sample_rate: u32) -> DecodedAudio {
         let frame_count = samples.len() / channels as usize;
-        let duration = frame_count as f64 / sample_rate as f64;
+        let duration = std::time::Duration::from_secs_f64(frame_count as f64 / sample_rate as f64);
         DecodedAudio {
             samples: InterleavedSamples(samples),
             channels,
@@ -720,7 +720,7 @@ mod tests {
         let clip = LoadedAudioClip {
             audio: decoded.clone(),
             start_time: 0.0,
-            end_time: decoded.duration,
+            end_time: decoded.duration.as_secs_f64(),
             volume: 1.0,
         };
         *state.clips.write() = vec![clip];
@@ -797,8 +797,8 @@ mod tests {
             return;
         };
 
-        // Then the initial duration is 0.0.
-        assert_eq!(engine.duration(), 0.0);
+        // Then the initial duration is zero.
+        assert_eq!(engine.duration(), std::time::Duration::ZERO);
     }
 
     #[test]
@@ -850,8 +850,9 @@ mod tests {
         // Then the duration is approximately 1.0 second.
         let dur = engine.duration();
         assert!(
-            (dur - 1.0).abs() < 0.05,
-            "duration should be ~1.0s, got {dur}"
+            (dur.as_secs_f64() - 1.0).abs() < 0.05,
+            "duration should be ~1.0s, got {}",
+            dur.as_secs_f64()
         );
     }
 
@@ -959,8 +960,9 @@ mod tests {
         // Then the position is clamped to the duration.
         let pos = engine.position();
         assert!(
-            (pos - dur).abs() < 0.01,
-            "position should be ~{dur}s, got {pos}"
+            (pos - dur.as_secs_f64()).abs() < 0.01,
+            "position should be ~{}s, got {pos}",
+            dur.as_secs_f64()
         );
     }
 

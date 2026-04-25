@@ -85,7 +85,7 @@ pub fn render_audio(
         });
     }
 
-    let duration = end_time - start_time;
+    let duration = std::time::Duration::from_secs_f64(end_time - start_time);
     let mixed = mix_clips(&mixed_clips, OUTPUT_SAMPLE_RATE, OUTPUT_CHANNELS, duration);
 
     let wav_path = output_dir.join("mixed_audio.wav");

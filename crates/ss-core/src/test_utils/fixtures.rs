@@ -68,7 +68,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
     Project {
         resolution: [1920, 1080],
         fps: 60,
-        duration: 30.0,
+        duration: std::time::Duration::from_secs_f64(30.0),
         output: "output.mp4".to_string(),
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio_clips: vec![build_audio_clip("audio", "assets/song.mp3", 0.0, 30.0)],

@@ -12,7 +12,7 @@ fn make_project_with_audio_clips(clips: Vec<AudioClipDef>) -> Project {
     Project {
         resolution: [100, 50],
         fps: 10,
-        duration: 2.0,
+        duration: std::time::Duration::from_secs_f64(2.0),
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio_clips: clips,
@@ -80,7 +80,7 @@ fn mix_clips_produces_correct_duration() {
         start_time: 0.0,
         volume: 1.0,
     };
-    let duration = 10.0;
+    let duration = std::time::Duration::from_secs_f64(10.0);
 
     // When mixing.
     let output = mix_clips(&[clip], 44100, 2, duration);

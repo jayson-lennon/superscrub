@@ -35,7 +35,7 @@ use std::path::Path;
 
 use ss_core::{EncodingConfig, Project};
 
-use crate::{BuilderError, BuilderErrors, AudioClipBuilder, ClipBuilder};
+use crate::{AudioClipBuilder, BuilderError, BuilderErrors, ClipBuilder};
 
 /// Parameters managed by `bon`'s typestate builder.
 ///
@@ -177,7 +177,7 @@ impl ProjectBuilder {
         Ok(Project {
             resolution: self.params.resolution,
             fps: self.params.fps,
-            duration: self.params.duration,
+            duration: std::time::Duration::from_secs_f64(self.params.duration),
             output: self.params.output,
             background: self.params.background,
             audio_clips,
@@ -248,7 +248,7 @@ mod tests {
         // Then defaults are applied correctly.
         assert_eq!(project.resolution, [1920, 1080]);
         assert_eq!(project.fps, 60);
-        assert!((project.duration - 30.0).abs() < 1e-5);
+        assert!((project.duration.as_secs_f64() - 30.0).abs() < 1e-5);
         assert_eq!(project.output, "out.mp4");
         assert_eq!(project.background, [0x2c, 0x2e, 0x34, 0xff]);
         assert_eq!(project.encoding.crf, EncodingConfig::default().crf);
@@ -581,7 +581,7 @@ mod tests {
         let back: ss_core::Project = serde_json::from_str(&json).expect("should parse back");
         assert_eq!(back.resolution, [1920, 1080]);
         assert_eq!(back.fps, 60);
-        assert!((back.duration - 30.0).abs() < 1e-5);
+        assert!((back.duration.as_secs_f64() - 30.0).abs() < 1e-5);
         assert_eq!(back.output, "out.mp4");
     }
 
@@ -593,9 +593,7 @@ mod tests {
         let path = dir.path().join("project.json");
 
         // When writing to file.
-        ProjectBuilder::new(params)
-            .to_json_file(&path)
-            .unwrap();
+        ProjectBuilder::new(params).to_json_file(&path).unwrap();
 
         // Then the file exists, is valid JSON, and round-trips.
         let json = std::fs::read_to_string(&path).unwrap();
@@ -615,11 +613,7 @@ mod tests {
                 .end_time(30.0)
                 .build(),
         )
-        .add_animation(
-            AnimBuilder::opacity()
-                .keyframe(0.0, 0.0)
-                .keyframe(3.0, 1.0),
-        );
+        .add_animation(AnimBuilder::opacity().keyframe(0.0, 0.0).keyframe(3.0, 1.0));
 
         // When serializing to JSON and parsing back.
         let json = ProjectBuilder::new(params)

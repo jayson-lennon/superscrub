@@ -15,7 +15,7 @@ pub fn minimal_project() -> Project {
     Project {
         resolution: [100, 50],
         fps: 10,
-        duration: 2.0,
+        duration: std::time::Duration::from_secs_f64(2.0),
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio_clips: vec![],
@@ -32,7 +32,7 @@ pub fn empty_project() -> Project {
     Project {
         resolution: [100, 50],
         fps: 10,
-        duration: 2.0,
+        duration: std::time::Duration::from_secs_f64(2.0),
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio_clips: vec![],

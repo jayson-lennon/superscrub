@@ -529,7 +529,7 @@ mod tests {
         ss_core::project::Project {
             resolution: [1920, 1080],
             fps: 30,
-            duration: 10.0,
+            duration: std::time::Duration::from_secs_f64(10.0),
             output: "out.mp4".to_string(),
             background: [0x2c, 0x2e, 0x34, 0xff],
             audio_clips,

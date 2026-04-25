@@ -108,10 +108,10 @@ pub trait AudioEngine: Send + Sync {
     /// Returns 0.0 if no audio is loaded.
     fn position(&self) -> f64;
 
-    /// Report the total duration of the loaded audio in seconds.
+    /// Report the total duration of the loaded audio.
     ///
-    /// Returns 0.0 if no audio is loaded.
-    fn duration(&self) -> f64;
+    /// Returns a zero duration if no audio is loaded.
+    fn duration(&self) -> std::time::Duration;
 
     /// Report the current playback state.
     fn state(&self) -> AudioPlaybackState;

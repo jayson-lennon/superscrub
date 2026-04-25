@@ -14,7 +14,7 @@ pub fn minimal_project() -> Project {
     Project {
         resolution: [200, 100],
         fps: 30,
-        duration: 10.0,
+        duration: std::time::Duration::from_secs_f64(10.0),
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio_clips: vec![],
@@ -35,7 +35,7 @@ pub fn multi_track_project() -> Project {
     Project {
         resolution: [200, 100],
         fps: 30,
-        duration: 10.0,
+        duration: std::time::Duration::from_secs_f64(10.0),
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio_clips: vec![],

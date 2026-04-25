@@ -59,9 +59,9 @@ impl FakeAudioEngine {
     }
 
     /// Create a fake that reports the given duration, as if audio is loaded.
-    pub fn with_duration(duration: f64) -> Self {
+    pub fn with_duration(duration: std::time::Duration) -> Self {
         let state = FakeState {
-            duration,
+            duration: duration.as_secs_f64(),
             loaded: true,
             ..Default::default()
         };
@@ -152,8 +152,8 @@ impl AudioEngine for FakeAudioEngine {
         self.state.lock().unwrap().position
     }
 
-    fn duration(&self) -> f64 {
-        self.state.lock().unwrap().duration
+    fn duration(&self) -> std::time::Duration {
+        std::time::Duration::from_secs_f64(self.state.lock().unwrap().duration)
     }
 
     fn state(&self) -> AudioPlaybackState {
@@ -204,8 +204,8 @@ mod tests {
         // Given a new fake engine.
         let engine = FakeAudioEngine::new();
 
-        // Then the initial duration is 0.0.
-        assert_eq!(engine.duration(), 0.0);
+        // Then the initial duration is zero.
+        assert_eq!(engine.duration(), std::time::Duration::ZERO);
     }
 
     #[test]
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn play_transitions_to_playing() {
         // Given a fake engine with audio loaded.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
         // When playing.
         engine.play();
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn play_increments_count() {
         // Given a fake engine with audio loaded.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
         // When playing.
         engine.play();
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn pause_transitions_from_playing_to_paused() {
         // Given a playing engine.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
         engine.play();
 
         // When pausing.
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn pause_is_noop_when_already_paused() {
         // Given a paused engine.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
         // When pausing while already paused.
         engine.pause();
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn seek_updates_position() {
         // Given a fake engine with audio loaded.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
         // When seeking to 5.0 seconds.
         engine.seek(5.0).unwrap();
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn seek_clamps_to_duration() {
         // Given a fake engine with 30s audio.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
         // When seeking past the duration.
         engine.seek(100.0).unwrap();
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn seek_clamps_to_zero() {
         // Given a fake engine with audio loaded.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
         // When seeking to a negative time.
         engine.seek(-5.0).unwrap();
@@ -346,11 +346,11 @@ mod tests {
 
     #[test]
     fn with_duration_reports_duration() {
-        // Given a fake engine created with_duration(30.0).
-        let engine = FakeAudioEngine::with_duration(30.0);
+        // Given a fake engine created with_duration(30s).
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
 
-        // Then the duration is 30.0.
-        assert_eq!(engine.duration(), 30.0);
+        // Then the duration is 30.0 seconds.
+        assert_eq!(engine.duration().as_secs_f64(), 30.0);
     }
 
     #[test]
@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn pause_and_seek_achieves_stop() {
         // Given a playing engine with a seek position.
-        let engine = FakeAudioEngine::with_duration(30.0);
+        let engine = FakeAudioEngine::with_duration(std::time::Duration::from_secs_f64(30.0));
         engine.play();
         engine.seek(5.0).unwrap();
 
@@ -466,6 +466,6 @@ mod tests {
         engine.load_clips(&clips).unwrap();
 
         // Then the duration is the max end_time.
-        assert_eq!(engine.duration(), 20.0);
+        assert_eq!(engine.duration().as_secs_f64(), 20.0);
     }
 }

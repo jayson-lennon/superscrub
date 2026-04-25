@@ -6,7 +6,29 @@
 
 pub mod loader;
 
+use std::time::Duration;
+
 use crate::clip::ClipDef;
+
+pub(crate) mod serde_duration_secs {
+    use serde::Deserialize;
+    use std::time::Duration;
+
+    pub fn serialize<S>(dur: &Duration, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        s.serialize_f64(dur.as_secs_f64())
+    }
+
+    pub fn deserialize<'de, D>(d: D) -> Result<Duration, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let secs = f64::deserialize(d)?;
+        Ok(Duration::from_secs_f64(secs))
+    }
+}
 
 /// Video encoding configuration for the output file.
 ///
@@ -61,8 +83,8 @@ pub struct Project {
     pub resolution: [u32; 2],
     /// Output frames per second.
     pub fps: u32,
-    /// Total duration in seconds.
-    pub duration: f64,
+    /// Total duration.
+    pub duration: Duration,
     /// Output file path.
     pub output: String,
     /// Background color as [R, G, B, A], default #2c2e34 (opaque dark gray).
@@ -119,7 +141,8 @@ fn default_volume() -> f32 {
 struct ProjectInner {
     pub resolution: [u32; 2],
     pub fps: u32,
-    pub duration: f64,
+    #[serde(with = "serde_duration_secs")]
+    pub duration: Duration,
     pub output: String,
     #[serde(default = "default_background")]
     pub background: [u8; 4],
@@ -150,7 +173,7 @@ impl<'de> serde::Deserialize<'de> for Project {
                         path: a.path,
                         track: 0,
                         start_time: a.start_time,
-                        end_time: inner.duration,
+                        end_time: inner.duration.as_secs_f64(),
                         volume: 1.0,
                     }]
                 })
@@ -181,7 +204,8 @@ impl serde::Serialize for Project {
         struct ProjectOut<'a> {
             resolution: &'a [u32; 2],
             fps: &'a u32,
-            duration: &'a f64,
+            #[serde(with = "serde_duration_secs")]
+            duration: &'a Duration,
             output: &'a String,
             background: &'a [u8; 4],
             audio_clips: &'a [AudioClipDef],
@@ -286,7 +310,7 @@ mod tests {
         // Then all fields are correct.
         assert_eq!(project.resolution, [1920, 1080]);
         assert_eq!(project.fps, 60);
-        assert!((project.duration - 30.0).abs() < 1e-5);
+        assert!((project.duration.as_secs_f64() - 30.0).abs() < 1e-5);
         assert_eq!(project.output, "output.mp4");
         assert_eq!(project.audio_clips.len(), 1);
 
@@ -428,7 +452,7 @@ mod tests {
         // Then the roundtrip preserves the data.
         assert_eq!(back.resolution, project.resolution);
         assert_eq!(back.fps, project.fps);
-        assert!((back.duration - project.duration).abs() < 1e-5);
+        assert!((back.duration.as_secs_f64() - project.duration.as_secs_f64()).abs() < 1e-5);
         assert_eq!(back.output, project.output);
     }
 

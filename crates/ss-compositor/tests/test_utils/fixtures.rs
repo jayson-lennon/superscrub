@@ -13,7 +13,7 @@ pub fn build_project(clips: Vec<ss_core::clip::ClipDef>) -> Project {
     Project {
         resolution: [100, 100],
         fps: 30,
-        duration: 10.0,
+        duration: std::time::Duration::from_secs_f64(10.0),
         output: "output.mp4".to_string(),
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio_clips: vec![],

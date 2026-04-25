@@ -403,7 +403,7 @@ mod tests {
 
         // Then the result stays within [0, 1].
         assert!(
-(0.0..=1.0).contains(&result),
+            (0.0..=1.0).contains(&result),
             "result {result} is out of bounds"
         );
     }

@@ -2,7 +2,6 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-
 use ss_audio::{AudioEngineService, AudioPlaybackState, FakeAudioEngine};
 use ss_editor::EditorState;
 use ss_editor::PlaybackController;
@@ -17,7 +16,9 @@ fn create_controller(
     Arc<FakeAudioEngine>,
     Arc<FakePreviewCache>,
 ) {
-    let fake_audio = Arc::new(FakeAudioEngine::with_duration(10.0));
+    let fake_audio = Arc::new(FakeAudioEngine::with_duration(
+        std::time::Duration::from_secs_f64(10.0),
+    ));
     let fake_cache = Arc::new(FakePreviewCache::new());
 
     let audio = AudioEngineService::new(fake_audio.clone());

@@ -37,9 +37,10 @@ pub fn mix_clips(
     clips: &[MixedClip],
     output_sample_rate: u32,
     output_channels: u16,
-    duration: f64,
+    duration: std::time::Duration,
 ) -> Vec<f32> {
-    let total_samples = (duration * output_sample_rate as f64 * output_channels as f64) as usize;
+    let total_samples =
+        (duration.as_secs_f64() * output_sample_rate as f64 * output_channels as f64) as usize;
     let mut output = vec![0.0f32; total_samples];
 
     for clip in clips {
@@ -94,7 +95,7 @@ mod tests {
     fn mix_empty_clips_produces_silence() {
         // Given no clips and a 1-second duration.
         let clips: Vec<MixedClip> = vec![];
-        let duration = 1.0;
+        let duration = std::time::Duration::from_secs_f64(1.0);
 
         // When mixing.
         let output = mix_clips(&clips, SAMPLE_RATE, CHANNELS, duration);
@@ -110,7 +111,7 @@ mod tests {
         // Given one clip at start_time=0 with volume=1.0.
         let samples = vec![0.5, -0.3, 0.8, -0.1];
         let clip = make_clip(samples.clone(), 0.0, 1.0);
-        let duration = 1.0;
+        let duration = std::time::Duration::from_secs_f64(1.0);
 
         // When mixing.
         let output = mix_clips(&[clip], SAMPLE_RATE, CHANNELS, duration);
@@ -129,7 +130,7 @@ mod tests {
         // Given one clip at volume=0.5.
         let samples = vec![1.0, -1.0, 0.8, -0.8];
         let clip = make_clip(samples, 0.0, 0.5);
-        let duration = 1.0;
+        let duration = std::time::Duration::from_secs_f64(1.0);
 
         // When mixing.
         let output = mix_clips(&[clip], SAMPLE_RATE, CHANNELS, duration);
@@ -146,7 +147,7 @@ mod tests {
         // Given two clips at the same start_time.
         let clip_a = make_clip(vec![1.0, 0.0, 0.0, 0.0], 0.0, 1.0);
         let clip_b = make_clip(vec![0.5, 0.0, 0.0, 0.0], 0.0, 1.0);
-        let duration = 1.0;
+        let duration = std::time::Duration::from_secs_f64(1.0);
 
         // When mixing.
         let output = mix_clips(&[clip_a, clip_b], SAMPLE_RATE, CHANNELS, duration);
@@ -162,7 +163,7 @@ mod tests {
         // Use a low sample rate so offset math is trivial.
         // 10 Hz, 1 channel, clip at start_time=1.0s → offset = 10 samples.
         let clip = make_clip(vec![1.0, 2.0, 3.0], 1.0, 1.0);
-        let duration = 2.0;
+        let duration = std::time::Duration::from_secs_f64(2.0);
 
         // When mixing at 10 Hz, 1 channel.
         let output = mix_clips(&[clip], 10, 1, duration);
@@ -182,7 +183,7 @@ mod tests {
         // 10 Hz, 1 channel, 2-second output = 20 samples.
         // Clip has 30 samples starting at offset 0.
         let clip = make_clip(vec![1.0; 30], 0.0, 1.0);
-        let duration = 2.0;
+        let duration = std::time::Duration::from_secs_f64(2.0);
 
         // When mixing.
         let output = mix_clips(&[clip], 10, 1, duration);

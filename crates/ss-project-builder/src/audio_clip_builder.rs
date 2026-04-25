@@ -83,8 +83,7 @@ impl AudioClipBuilder {
 
         if self.params.end_time <= self.params.start_time {
             errors.push(
-                BuilderError::new("end_time must be greater than start_time")
-                    .in_context(&clip_ctx),
+                BuilderError::new("end_time must be greater than start_time").in_context(&clip_ctx),
             );
         }
 

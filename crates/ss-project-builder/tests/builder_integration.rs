@@ -1,8 +1,8 @@
 //! Integration tests for the full builder pipeline.
 
 use ss_core::Easing;
-use ss_project_builder::*;
 use ss_project_builder::clip_builder::sizing;
+use ss_project_builder::*;
 
 // ============================================================
 // Round-trip test
@@ -126,7 +126,11 @@ fn all_errors_collected_across_nested_builders() {
     let messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
 
     // We expect 4 errors: 1 project-level (duration), 2 clip-level (time range + empty keyframes), 1 audio-level (time range)
-    assert_eq!(messages.len(), 4, "should have exactly 4 errors: {messages:?}");
+    assert_eq!(
+        messages.len(),
+        4,
+        "should have exactly 4 errors: {messages:?}"
+    );
 
     let combined = messages.join("\n");
     assert!(
@@ -165,11 +169,7 @@ fn built_project_round_trips_through_serde() {
             .end_time(10.0)
             .build(),
     )
-    .add_animation(
-        AnimBuilder::opacity()
-            .keyframe(0.0, 0.0)
-            .keyframe(5.0, 1.0),
-    );
+    .add_animation(AnimBuilder::opacity().keyframe(0.0, 0.0).keyframe(5.0, 1.0));
 
     let audio = AudioClipBuilder::new(
         AudioClipParams::builder()
@@ -198,7 +198,7 @@ fn built_project_round_trips_through_serde() {
     // Then all fields survive the round trip.
     assert_eq!(project.resolution, [1280, 720]);
     assert_eq!(project.fps, 30);
-    assert!((project.duration - 10.0).abs() < 1e-5);
+    assert!((project.duration.as_secs_f64() - 10.0).abs() < 1e-5);
     assert_eq!(project.output, "out.mp4");
     assert_eq!(project.clips.len(), 1);
     assert_eq!(project.clips[0].id, "test");

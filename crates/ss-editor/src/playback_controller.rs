@@ -90,7 +90,7 @@ impl PlaybackController {
     ///
     /// Converts the fraction to a time value and seeks.
     pub fn seek_to_fraction(&mut self, fraction: f64) {
-        let duration = self.state.duration();
+        let duration = self.state.duration().as_secs_f64();
         if duration > 0.0 {
             self.seek_to(fraction * duration);
         }
@@ -110,7 +110,7 @@ impl PlaybackController {
         // Detect audio engine auto-stop. Only check when audio is loaded
         // (duration > 0 means audio was loaded). If the engine reports Paused
         // while the editor is Playing, the audio reached its end.
-        let audio_loaded = self.audio.duration() > 0.0;
+        let audio_loaded = self.audio.duration() > std::time::Duration::ZERO;
         if audio_loaded && self.audio.state() == AudioPlaybackState::Paused {
             self.pause();
             return false;

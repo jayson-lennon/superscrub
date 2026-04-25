@@ -93,9 +93,12 @@ impl EditorState {
         self.current_time
     }
 
-    /// The project duration in seconds (0.0 if no project).
-    pub fn duration(&self) -> f64 {
-        self.project.as_ref().map(|p| p.duration).unwrap_or(0.0)
+    /// The project duration (0 if no project).
+    pub fn duration(&self) -> std::time::Duration {
+        self.project
+            .as_ref()
+            .map(|p| p.duration)
+            .unwrap_or(std::time::Duration::ZERO)
     }
 
     /// Advance the current time by the given delta.
@@ -103,7 +106,7 @@ impl EditorState {
     /// Clamps to [0, duration). Returns `true` if playback should continue
     /// (i.e., time has not reached the end).
     pub fn advance_time(&mut self, dt: f64) -> bool {
-        let duration = self.duration();
+        let duration = self.duration().as_secs_f64();
         self.current_time = (self.current_time + dt).clamp(0.0, duration);
 
         // If we've hit the end, stop.
@@ -114,7 +117,7 @@ impl EditorState {
     ///
     /// Clamps to [0, duration).
     pub fn seek_to(&mut self, time: f64) {
-        let duration = self.duration();
+        let duration = self.duration().as_secs_f64();
         self.current_time = time.clamp(0.0, if duration > 0.0 { duration } else { 0.0 });
     }
 
@@ -177,7 +180,7 @@ mod tests {
         Project {
             resolution: [200, 100],
             fps: 30,
-            duration: 10.0,
+            duration: std::time::Duration::from_secs_f64(10.0),
             output: "out.mp4".into(),
             background: [0, 0, 0, 255],
             audio_clips: vec![],

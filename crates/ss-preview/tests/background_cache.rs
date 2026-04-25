@@ -15,7 +15,7 @@ fn minimal_project() -> Project {
     Project {
         resolution: [100, 100],
         fps: 10,
-        duration: 1.0,
+        duration: std::time::Duration::from_secs_f64(1.0),
         output: "out.mp4".into(),
         background: [0, 0, 0, 255],
         audio_clips: vec![],

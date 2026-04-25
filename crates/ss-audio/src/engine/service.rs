@@ -58,8 +58,8 @@ impl AudioEngineService {
         self.backend.position()
     }
 
-    /// Report the total duration of the loaded audio in seconds.
-    pub fn duration(&self) -> f64 {
+    /// Report the total duration of the loaded audio.
+    pub fn duration(&self) -> std::time::Duration {
         self.backend.duration()
     }
 

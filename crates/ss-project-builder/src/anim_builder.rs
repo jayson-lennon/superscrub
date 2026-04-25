@@ -169,10 +169,7 @@ mod tests {
         let builder = AnimBuilder::opacity();
 
         // When adding two keyframes.
-        let track = builder
-            .keyframe(0.0, 1.0)
-            .keyframe(5.0, 2.0)
-            .build();
+        let track = builder.keyframe(0.0, 1.0).keyframe(5.0, 2.0).build();
 
         // Then both have Linear easing.
         assert_eq!(track.keyframes.len(), 2);

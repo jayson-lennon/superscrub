@@ -144,7 +144,10 @@ mod tests {
         #[case] expected: (u32, u32),
     ) {
         // Given a config with the given preview divisor and a 1920×1080 project.
-        let config = AppConfig { preview_divisor: divisor, ..Default::default() };
+        let config = AppConfig {
+            preview_divisor: divisor,
+            ..Default::default()
+        };
         let project_res = [1920, 1080];
 
         // When computing the preview resolution.

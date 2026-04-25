@@ -111,8 +111,8 @@ pub struct DecodedAudio {
     pub channels: u16,
     /// Sample rate of the decoded (and possibly resampled) audio.
     pub sample_rate: u32,
-    /// Duration in seconds.
-    pub duration: f64,
+    /// Duration of the decoded audio.
+    pub duration: std::time::Duration,
 }
 
 /// Decode an audio file to interleaved f32 PCM at its native sample rate.
@@ -126,7 +126,8 @@ pub struct DecodedAudio {
 /// unrecognized, or decoding fails.
 pub fn decode_file(path: &Path) -> Result<DecodedAudio, Report<DecodeError>> {
     let (planar, channels, sample_rate) = decode_to_planar(path)?;
-    let duration = planar.frame_count() as f64 / sample_rate as f64;
+    let duration =
+        std::time::Duration::from_secs_f64(planar.frame_count() as f64 / sample_rate as f64);
     let samples: InterleavedSamples = planar.into();
 
     Ok(DecodedAudio {
@@ -159,7 +160,9 @@ pub fn decode_file_with_sample_rate(
             .attach("resampling failed")?
     };
 
-    let duration = resampled.frame_count() as f64 / target_sample_rate as f64;
+    let duration = std::time::Duration::from_secs_f64(
+        resampled.frame_count() as f64 / target_sample_rate as f64,
+    );
     let samples: InterleavedSamples = resampled.into();
 
     Ok(DecodedAudio {
@@ -465,7 +468,7 @@ mod tests {
         assert!(!decoded.samples.is_empty());
         assert_eq!(decoded.channels, 1);
         assert_eq!(decoded.sample_rate, 44100);
-        assert!(decoded.duration > 0.0);
+        assert!(!decoded.duration.is_zero());
     }
 
     #[test]
@@ -505,7 +508,7 @@ mod tests {
         // Then sample count ≈ channels × sample_rate × duration.
         let expected = (decoded.channels as usize)
             * (decoded.sample_rate as usize)
-            * (decoded.duration as usize);
+            * (decoded.duration.as_secs_f64() as usize);
         let actual = decoded.samples.len();
         assert!(
             (actual as i64 - expected as i64).unsigned_abs() <= 1,
@@ -531,7 +534,7 @@ mod tests {
         // Then the sample rate is 48000 and duration is approximately preserved.
         assert_eq!(resampled.sample_rate, 48000);
         assert!(!resampled.samples.is_empty());
-        assert!((resampled.duration - native.duration).abs() < 0.1);
+        assert!((resampled.duration.as_secs_f64() - native.duration.as_secs_f64()).abs() < 0.1);
     }
 
     #[test]
@@ -629,7 +632,7 @@ mod tests {
             samples: InterleavedSamples(vec![1.0, 2.0, 3.0]),
             channels: 1,
             sample_rate: 44100,
-            duration: 3.0 / 44100.0,
+            duration: std::time::Duration::from_secs_f64(3.0 / 44100.0),
         };
 
         // When remixing to stereo.
@@ -652,7 +655,7 @@ mod tests {
             ]),
             channels: 2,
             sample_rate: 44100,
-            duration: 2.0 / 44100.0,
+            duration: std::time::Duration::from_secs_f64(2.0 / 44100.0),
         };
 
         // When remixing to mono.
@@ -670,7 +673,7 @@ mod tests {
             samples: InterleavedSamples(vec![1.0, 2.0, 3.0, 4.0]),
             channels: 2,
             sample_rate: 44100,
-            duration: 2.0 / 44100.0,
+            duration: std::time::Duration::from_secs_f64(2.0 / 44100.0),
         };
 
         // When remixing to stereo (same channel count).

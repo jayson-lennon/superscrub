@@ -128,25 +128,32 @@ pub fn range_frame_count(start: f64, end: f64, fps: u32) -> usize {
 /// Clamp a time range to the project bounds.
 ///
 /// Returns `(clamped_start, clamped_end)`.
-pub fn clamp_time_range(start: Option<f64>, end: Option<f64>, duration: f64) -> (f64, f64) {
-    let s = start.unwrap_or(0.0).clamp(0.0, duration);
-    let e = end.unwrap_or(duration).clamp(0.0, duration);
+pub fn clamp_time_range(
+    start: Option<f64>,
+    end: Option<f64>,
+    duration: std::time::Duration,
+) -> (f64, f64) {
+    let dur_secs = duration.as_secs_f64();
+    let s = start.unwrap_or(0.0).clamp(0.0, dur_secs);
+    let e = end.unwrap_or(dur_secs).clamp(0.0, dur_secs);
     (s, e.max(s)) // ensure end >= start
 }
 
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
+    use std::time::Duration;
+
     use super::{clamp_time_range, range_frame_count};
 
     #[rstest::rstest]
-    #[case::default_range(None, None, 30.0, 0.0, 30.0)]
-    #[case::clamped_to_bounds(Some(-5.0), Some(100.0), 30.0, 0.0, 30.0)]
-    #[case::start_greater_than_end(Some(20.0), Some(10.0), 30.0, 20.0, 20.0)]
+    #[case::default_range(None, None, Duration::from_secs_f64(30.0), 0.0, 30.0)]
+    #[case::clamped_to_bounds(Some(-5.0), Some(100.0), Duration::from_secs_f64(30.0), 0.0, 30.0)]
+    #[case::start_greater_than_end(Some(20.0), Some(10.0), Duration::from_secs_f64(30.0), 20.0, 20.0)]
     fn clamp_time_range_produces_correct_bounds(
         #[case] start: Option<f64>,
         #[case] end: Option<f64>,
-        #[case] duration: f64,
+        #[case] duration: Duration,
         #[case] expected_start: f64,
         #[case] expected_end: f64,
     ) {

@@ -170,8 +170,7 @@ impl ClipBuilder {
         // Validate end_time > start_time.
         if self.params.end_time <= self.params.start_time {
             errors.push(
-                BuilderError::new("end_time must be greater than start_time")
-                    .in_context(&clip_ctx),
+                BuilderError::new("end_time must be greater than start_time").in_context(&clip_ctx),
             );
         }
 
@@ -214,9 +213,7 @@ impl ClipBuilder {
 /// Returns the user-facing name for an [`AnimatableProperty`](ss_core::AnimatableProperty).
 ///
 /// Uses the serde rename value (e.g., `"scale_x"`) for readable error messages.
-fn property_display_name(
-    property: ss_core::AnimatableProperty,
-) -> &'static str {
+fn property_display_name(property: ss_core::AnimatableProperty) -> &'static str {
     match property {
         ss_core::AnimatableProperty::ScaleX => "scale_x",
         ss_core::AnimatableProperty::ScaleY => "scale_y",
@@ -290,10 +287,13 @@ mod tests {
         assert_eq!(clip.start_time, 1.0);
         assert_eq!(clip.end_time, 15.0);
         assert_eq!(clip.z_index, 10);
-        assert_eq!(clip.sizing, Sizing::Explicit {
-            width: 800,
-            height: 600,
-        });
+        assert_eq!(
+            clip.sizing,
+            Sizing::Explicit {
+                width: 800,
+                height: 600,
+            }
+        );
         assert_eq!(clip.pivot, [0.0, 1.0]);
     }
 
@@ -301,11 +301,9 @@ mod tests {
     fn build_clip_with_animations() {
         // Given a ClipBuilder with two animations.
         let params = minimal_params("test", "img.png", 10.0);
-        let anim1 = AnimBuilder::opacity()
-            .keyframe(0.0, 0.0)
-            .keyframe(3.0, 1.0);
-        let anim2 = AnimBuilder::scale_x()
-            .keyframe_with_easing(0.0, 1.0, ss_core::Easing::SineInOut);
+        let anim1 = AnimBuilder::opacity().keyframe(0.0, 0.0).keyframe(3.0, 1.0);
+        let anim2 =
+            AnimBuilder::scale_x().keyframe_with_easing(0.0, 1.0, ss_core::Easing::SineInOut);
 
         // When building.
         let clip = ClipBuilder::new(params)
@@ -333,9 +331,18 @@ mod tests {
         let errors = result.expect_err("should fail with empty animation");
         let error = errors.iter().next().unwrap();
         let msg = error.to_string();
-        assert!(msg.contains("clip \"test\""), "error should mention clip: {msg}");
-        assert!(msg.contains("animation \"opacity\""), "error should mention property: {msg}");
-        assert!(msg.contains("no keyframes"), "error should describe issue: {msg}");
+        assert!(
+            msg.contains("clip \"test\""),
+            "error should mention clip: {msg}"
+        );
+        assert!(
+            msg.contains("animation \"opacity\""),
+            "error should mention property: {msg}"
+        );
+        assert!(
+            msg.contains("no keyframes"),
+            "error should describe issue: {msg}"
+        );
     }
 
     #[test]
@@ -380,10 +387,20 @@ mod tests {
         // Then both errors are collected.
         let errors = result.expect_err("should fail with multiple errors");
         let messages: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
-        assert_eq!(messages.len(), 2, "should have exactly 2 errors: {messages:?}");
+        assert_eq!(
+            messages.len(),
+            2,
+            "should have exactly 2 errors: {messages:?}"
+        );
         let combined = messages.join("; ");
-        assert!(combined.contains("end_time"), "should mention time error: {combined}");
-        assert!(combined.contains("no keyframes"), "should mention keyframe error: {combined}");
+        assert!(
+            combined.contains("end_time"),
+            "should mention time error: {combined}"
+        );
+        assert!(
+            combined.contains("no keyframes"),
+            "should mention keyframe error: {combined}"
+        );
     }
 
     #[rstest]
@@ -420,15 +437,21 @@ mod tests {
             property_display_name(AnimatableProperty::TranslateY),
             "translate_y"
         );
-        assert_eq!(property_display_name(AnimatableProperty::Rotation), "rotation");
-        assert_eq!(property_display_name(AnimatableProperty::Opacity), "opacity");
+        assert_eq!(
+            property_display_name(AnimatableProperty::Rotation),
+            "rotation"
+        );
+        assert_eq!(
+            property_display_name(AnimatableProperty::Opacity),
+            "opacity"
+        );
     }
 
     #[test]
     fn bon_builder_accepts_string_into_for_id_and_path() {
         // Given a builder using &str for id and path (tests #[builder(on(String, into))]).
         let params = ClipParams::builder()
-            .id("test")  // &str, not String
+            .id("test") // &str, not String
             .path("img.png")
             .end_time(5.0)
             .build();

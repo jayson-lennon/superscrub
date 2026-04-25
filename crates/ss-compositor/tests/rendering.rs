@@ -296,7 +296,7 @@ fn half_resolution_renders_entire_frame() {
     let project = Project {
         resolution: [200, 200],
         fps: 30,
-        duration: 10.0,
+        duration: std::time::Duration::from_secs_f64(10.0),
         output: "output.mp4".to_string(),
         background: DEFAULT_BG,
         audio_clips: vec![],
@@ -329,7 +329,7 @@ fn quarter_resolution_renders_entire_frame() {
     let project = Project {
         resolution: [200, 200],
         fps: 30,
-        duration: 10.0,
+        duration: std::time::Duration::from_secs_f64(10.0),
         output: "output.mp4".to_string(),
         background: DEFAULT_BG,
         audio_clips: vec![],
@@ -366,7 +366,7 @@ fn half_resolution_with_translate_animation_produces_correct_position() {
     let project = Project {
         resolution: [200, 200],
         fps: 30,
-        duration: 10.0,
+        duration: std::time::Duration::from_secs_f64(10.0),
         output: "output.mp4".to_string(),
         background: DEFAULT_BG,
         audio_clips: vec![],
