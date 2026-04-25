@@ -79,7 +79,7 @@ fn generate_images(dir: &Path) {
         img.save(&path).unwrap_or_else(|e| {
             panic!("failed to save {}: {e}", path.display());
         });
-        eprintln!("  wrote {} (400×400 {} checkerboard)", path.display(), name);
+        println!("  wrote {} (400×400 {} checkerboard)", path.display(), name);
     }
 }
 
@@ -119,7 +119,7 @@ fn build_project(dir: &Path) -> std::path::PathBuf {
     }
 
     let clips = builder.build();
-    eprintln!("  built {} Ken Burns clips", clips.len());
+    println!("  built {} Ken Burns clips", clips.len());
 
     let project_params = ProjectParams::builder()
         .resolution([400, 400])
@@ -136,7 +136,7 @@ fn build_project(dir: &Path) -> std::path::PathBuf {
         .unwrap_or_else(|e| {
             panic!("failed to write project.json: {e:?}");
         });
-    eprintln!("  wrote {}", project_path.display());
+    println!("  wrote {}", project_path.display());
 
     project_path
 }
