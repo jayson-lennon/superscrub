@@ -21,7 +21,7 @@ clap = { version = "4", features = ["derive"] }
 kanal = "0.1"
 parking_lot = "0.12"
 symphonia = { version = "0.5", features = ["mp3", "wav", "flac", "ogg", "aac", "pcm", "vorbis"] }
-rubato = "0.16"
+rubato = "2"
 tempfile = "3"
 cpal = "0.17"
 tracing = "0.1"

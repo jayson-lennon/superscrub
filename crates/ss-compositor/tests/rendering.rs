@@ -13,7 +13,9 @@ use ss_core::animation::{AnimatableProperty, AnimationTrack};
 use ss_core::clip::Sizing;
 use ss_core::project::{EncodingConfig, Project};
 use ss_core::test_utils::fixtures::{build_image_clip, kf};
-use test_utils::fixtures::{PROJECT_FILE, build_project, create_renderer, render_frame, render_frame_at_resolution};
+use test_utils::fixtures::{
+    PROJECT_FILE, build_project, create_renderer, render_frame, render_frame_at_resolution,
+};
 
 const RED: [u8; 4] = [255, 0, 0, 255];
 const GREEN: [u8; 4] = [0, 255, 0, 255];
@@ -310,7 +312,10 @@ fn half_resolution_renders_entire_frame() {
 
     // Then the center pixel (50, 50) is red — the entire frame is visible, not cropped.
     let pixel = pixel_color(&frame, 50, 50);
-    assert_eq!(pixel[0], 255, "center pixel should be red at half resolution");
+    assert_eq!(
+        pixel[0], 255,
+        "center pixel should be red at half resolution"
+    );
 }
 
 #[test]
@@ -340,7 +345,10 @@ fn quarter_resolution_renders_entire_frame() {
 
     // Then the center pixel (25, 25) is red — the entire frame is visible at quarter resolution.
     let pixel = pixel_color(&frame, 25, 25);
-    assert_eq!(pixel[0], 255, "center pixel should be red at quarter resolution");
+    assert_eq!(
+        pixel[0], 255,
+        "center pixel should be red at quarter resolution"
+    );
 }
 
 #[test]

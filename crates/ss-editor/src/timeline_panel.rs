@@ -264,8 +264,7 @@ impl TimelinePanel {
                 if primary_down {
                     // Continue scrubbing — use pointer position directly.
                     if let Some(pos) = response.ctx.input(|i| i.pointer.interact_pos()) {
-                        let fraction =
-                            ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
+                        let fraction = ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
                         let time = fraction as f64 * duration;
                         action = Some(TimelineAction::Scrub(time));
                     }
@@ -275,8 +274,7 @@ impl TimelinePanel {
                     self.is_scrubbing = false;
                     if response.clicked() {
                         if let Some(pos) = response.interact_pointer_pos() {
-                            let fraction =
-                                ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
+                            let fraction = ((pos.x - origin.x) / available_width).clamp(0.0, 1.0);
                             let time = fraction as f64 * duration;
                             action = Some(TimelineAction::Click(time));
                         }
@@ -663,11 +661,7 @@ mod tests {
     /// Run a setup frame so egui learns the widget layout before we send
     /// pointer events. Without this, egui cannot match pointer events to
     /// widgets on the very first frame.
-    fn setup_frame(
-        ctx: &egui::Context,
-        panel: &mut TimelinePanel,
-        project: &Project,
-    ) {
+    fn setup_frame(ctx: &egui::Context, panel: &mut TimelinePanel, project: &Project) {
         let _ = run_timeline_frame(ctx, panel, project, egui::RawInput::default());
     }
 
@@ -735,7 +729,10 @@ mod tests {
         // Then a Scrub action is returned.
         assert!(matches!(action, Some(TimelineAction::Scrub(_))));
         if let Some(TimelineAction::Scrub(time)) = action {
-            assert!((0.0..=10.0).contains(&time), "time should be in [0, 10], got {time}");
+            assert!(
+                (0.0..=10.0).contains(&time),
+                "time should be in [0, 10], got {time}"
+            );
         }
     }
 
@@ -786,7 +783,10 @@ mod tests {
         // Then a Click action is returned.
         assert!(matches!(action, Some(TimelineAction::Click(_))));
         if let Some(TimelineAction::Click(time)) = action {
-            assert!((0.0..=10.0).contains(&time), "time should be in [0, 10], got {time}");
+            assert!(
+                (0.0..=10.0).contains(&time),
+                "time should be in [0, 10], got {time}"
+            );
         }
     }
 }

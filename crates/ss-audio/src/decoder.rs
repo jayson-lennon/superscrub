@@ -15,7 +15,8 @@ use std::ops::Deref;
 use std::path::Path;
 
 use error_stack::{Report, ResultExt};
-use rubato::{FftFixedInOut, Resampler};
+use rubato::audioadapter_buffers::direct::SequentialSliceOfVecs;
+use rubato::{Fft, FixedSync, Resampler};
 use symphonia::core::audio::Signal;
 use symphonia::core::codecs::{CODEC_TYPE_NULL, DecoderOptions};
 use symphonia::core::formats::FormatOptions;
@@ -332,9 +333,8 @@ fn decode_to_planar(path: &Path) -> Result<(PlanarSamples, u16, u32), Report<Dec
 
 /// Resample planar audio from one sample rate to another.
 ///
-/// Feeds input in chunks through rubato's FFT resampler. The last chunk uses
-/// rubato's `process_partial_into_buffer` which handles zero-padding
-/// internally. Output is trimmed to the expected output frame count.
+/// Delegates chunked processing, partial last-chunk handling, and output
+/// trimming to rubato's `process_all_into_buffer`.
 fn resample(
     input: PlanarSamples,
     from_rate: u32,
@@ -342,73 +342,50 @@ fn resample(
     channels: u16,
 ) -> Result<PlanarSamples, Report<DecodeError>> {
     let frame_count = input.frame_count();
-    let expected_output_frames =
-        (frame_count as f64 * to_rate as f64 / from_rate as f64).round() as usize;
+    let channels_usize = channels as usize;
 
     let chunk_size = 1024;
-    let mut resampler = FftFixedInOut::new(
+    let sub_chunks = 1;
+    let mut resampler = Fft::<f32>::new(
         from_rate as usize,
         to_rate as usize,
         chunk_size,
-        channels as usize,
+        sub_chunks,
+        channels_usize,
+        FixedSync::Both,
     )
     .change_context(DecodeError)
     .attach("resampler creation failed")?;
 
-    let actual_chunk_in = resampler.input_frames_next();
-    let actual_chunk_out = resampler.output_frames_next();
+    // Wrap planar input as a sequential audioadapter buffer — zero-copy.
+    let input_buffer =
+        SequentialSliceOfVecs::<&[Vec<f32>]>::new(&input.0, channels_usize, frame_count)
+            .map_err(|e| Report::new(DecodeError).attach(format!("input buffer error: {e}")))?;
 
-    let mut output_channels: Vec<Vec<f32>> = vec![Vec::new(); channels as usize];
-    let input_buffers = input.0;
+    // Allocate output buffer with required capacity.
+    let output_capacity = resampler.process_all_needed_output_len(frame_count);
+    let mut output_data: Vec<Vec<f32>> = vec![vec![0.0f32; output_capacity]; channels_usize];
+    let mut output_buffer = SequentialSliceOfVecs::<&mut [Vec<f32>]>::new_mut(
+        &mut output_data,
+        channels_usize,
+        output_capacity,
+    )
+    .map_err(|e| Report::new(DecodeError).attach(format!("output buffer error: {e}")))?;
 
-    // Process full chunks.
-    let mut pos = 0;
-    while pos + actual_chunk_in <= frame_count {
-        let in_bufs: Vec<Vec<f32>> = input_buffers
-            .iter()
-            .map(|ch| ch[pos..pos + actual_chunk_in].to_vec())
-            .collect();
+    // Process entire clip in one call — handles chunking, partial last chunk, and delay trimming.
+    let (_input_len, output_len) = resampler
+        .process_all_into_buffer(&input_buffer, &mut output_buffer, frame_count, None)
+        .change_context(DecodeError)
+        .attach("resampling failed")?;
 
-        let mut out_bufs: Vec<Vec<f32>> = output_channels
-            .iter()
-            .map(|_| vec![0.0f32; actual_chunk_out])
-            .collect();
-
-        resampler
-            .process_into_buffer(&in_bufs, &mut out_bufs, None)
-            .change_context(DecodeError)
-            .attach("resampling failed")?;
-
-        for (ch_idx, out_buf) in out_bufs.into_iter().enumerate() {
-            output_channels[ch_idx].extend_from_slice(&out_buf);
-        }
-
-        pos += actual_chunk_in;
-    }
-
-    // Process remaining partial chunk (rubato zero-pads internally).
-    if pos < frame_count {
-        let in_bufs: Vec<Vec<f32>> = input_buffers.iter().map(|ch| ch[pos..].to_vec()).collect();
-
-        let mut out_bufs: Vec<Vec<f32>> = output_channels
-            .iter()
-            .map(|_| vec![0.0f32; actual_chunk_out])
-            .collect();
-
-        resampler
-            .process_partial_into_buffer(Some(&in_bufs), &mut out_bufs, None)
-            .change_context(DecodeError)
-            .attach("resampling partial chunk failed")?;
-
-        for (ch_idx, out_buf) in out_bufs.into_iter().enumerate() {
-            output_channels[ch_idx].extend_from_slice(&out_buf);
-        }
-    }
-
-    // Trim output to expected length (removes zero-padded artifacts).
-    for ch_buf in &mut output_channels {
-        ch_buf.truncate(expected_output_frames);
-    }
+    // Trim each channel to the actual output length and return as PlanarSamples.
+    let output_channels: Vec<Vec<f32>> = output_data
+        .into_iter()
+        .map(|mut ch| {
+            ch.truncate(output_len);
+            ch
+        })
+        .collect();
 
     Ok(PlanarSamples(output_channels))
 }

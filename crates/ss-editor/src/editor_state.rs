@@ -289,5 +289,4 @@ mod tests {
         state.reload_project(minimal_project());
         assert_eq!(state.current_time(), 5.0);
     }
-
 }

@@ -143,7 +143,13 @@ fn render_clip(
     );
 
     // Build the transform and warp the source image into a canvas-sized buffer.
-    let clip_layer = warp_clip(&source_image, &placement, &resolved, viewport, viewport_scale);
+    let clip_layer = warp_clip(
+        &source_image,
+        &placement,
+        &resolved,
+        viewport,
+        viewport_scale,
+    );
 
     // Alpha composite the clip onto the canvas.
     composite_onto(canvas, &clip_layer);

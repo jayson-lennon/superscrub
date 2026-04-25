@@ -233,14 +233,21 @@ mod tests {
     fn fit_rect_scales_and_positions_correctly(
         #[case] mode: FitMode,
         #[case] image_dims: (u32, u32),
-        #[case] rx: i32, #[case] ry: i32,
-        #[case] rw: u32, #[case] rh: u32,
-        #[case] expected_x: f32, #[case] expected_y: f32,
-        #[case] expected_w: f32, #[case] expected_h: f32,
+        #[case] rx: i32,
+        #[case] ry: i32,
+        #[case] rw: u32,
+        #[case] rh: u32,
+        #[case] expected_x: f32,
+        #[case] expected_y: f32,
+        #[case] expected_w: f32,
+        #[case] expected_h: f32,
     ) {
         // Given a FitRect with the given mode, rect dimensions, and image.
         let sizing = Sizing::FitRect {
-            x: rx, y: ry, w: rw, h: rh,
+            x: rx,
+            y: ry,
+            w: rw,
+            h: rh,
             mode,
             anchor: FitAnchor::Center,
         };

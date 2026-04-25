@@ -179,5 +179,4 @@ mod tests {
         assert_eq!(loaded.window_size, [1920, 1080]);
         assert_eq!(loaded.last_project, Some("/foo/bar.json".into()));
     }
-
 }
