@@ -22,6 +22,7 @@ use crate::frame_index::total_frames;
 /// and tracking method calls.
 pub struct FakePreviewCache {
     frames: Mutex<Vec<Option<RgbaImage>>>,
+    cached: Mutex<Vec<bool>>,
     progress: Mutex<PreviewRenderProgress>,
     /// Number of times `start_render` has been called.
     pub start_render_count: AtomicUsize,
@@ -38,6 +39,7 @@ impl FakePreviewCache {
     pub fn new() -> Self {
         Self {
             frames: Mutex::new(Vec::new()),
+            cached: Mutex::new(Vec::new()),
             progress: Mutex::new(PreviewRenderProgress {
                 rendered: 0,
                 total: 0,
@@ -56,6 +58,7 @@ impl FakePreviewCache {
         let mut frames = self.frames.lock().unwrap();
         if index < frames.len() {
             frames[index] = Some(image);
+            self.cached.lock().unwrap()[index] = true;
         }
     }
 
@@ -89,6 +92,7 @@ impl PreviewCache for FakePreviewCache {
         self.start_render_count.fetch_add(1, Ordering::SeqCst);
         let frame_count = total_frames(preview_fps, project.duration);
         *self.frames.lock().unwrap() = vec![None; frame_count];
+        *self.cached.lock().unwrap() = vec![false; frame_count];
         *self.progress.lock().unwrap() = PreviewRenderProgress {
             rendered: 0,
             total: frame_count,
@@ -108,6 +112,10 @@ impl PreviewCache for FakePreviewCache {
 
     fn progress(&self) -> PreviewRenderProgress {
         *self.progress.lock().unwrap()
+    }
+
+    fn cached_frames(&self) -> Vec<bool> {
+        self.cached.lock().unwrap().clone()
     }
 
     fn cancel(&self) {
@@ -300,5 +308,92 @@ mod tests {
 
         // Then fraction returns 0.5.
         assert_eq!(progress.fraction(), 0.5);
+    }
+
+    #[test]
+    fn cached_frames_is_empty_before_render() {
+        // Given a new fake cache.
+        let cache = FakePreviewCache::new();
+
+        // Then cached_frames returns an empty vec.
+        assert!(cache.cached_frames().is_empty());
+    }
+
+    #[test]
+    fn cached_frames_all_false_after_start_render() {
+        // Given a fake cache after start_render.
+        let cache = FakePreviewCache::new();
+        cache
+            .start_render(test_project(), "project.json".into(), (100, 100), 30)
+            .unwrap();
+
+        // When checking cached_frames.
+        let cached = cache.cached_frames();
+
+        // Then the vec has the correct length and all entries are false.
+        assert_eq!(cached.len(), 300);
+        assert!(cached.iter().all(|b| !b));
+    }
+
+    #[test]
+    fn cached_frames_true_for_inserted_frame() {
+        // Given a cache with a started render.
+        let cache = FakePreviewCache::new();
+        cache
+            .start_render(test_project(), "project.json".into(), (100, 100), 30)
+            .unwrap();
+
+        // When inserting a frame at index 0.
+        cache.insert_frame(0, RgbaImage::new(10, 10));
+
+        // Then cached_frames[0] is true and the rest are false.
+        let cached = cache.cached_frames();
+        assert!(cached[0]);
+        assert!(cached[1..].iter().all(|b| !b));
+    }
+
+    #[test]
+    fn cached_frames_partial_cache() {
+        // Given a cache with a started render.
+        let cache = FakePreviewCache::new();
+        cache
+            .start_render(test_project(), "project.json".into(), (100, 100), 30)
+            .unwrap();
+
+        // When inserting frames at indices 0 and 5.
+        cache.insert_frame(0, RgbaImage::new(10, 10));
+        cache.insert_frame(5, RgbaImage::new(10, 10));
+
+        // Then only indices 0 and 5 are true.
+        let cached = cache.cached_frames();
+        assert!(cached[0]);
+        assert!(cached[5]);
+        let others: Vec<bool> = cached
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != 0 && *i != 5)
+            .map(|(_, b)| *b)
+            .collect();
+        assert!(others.iter().all(|b| !b));
+    }
+
+    #[test]
+    fn cached_frames_resets_on_new_render() {
+        // Given a cache with inserted frames.
+        let cache = FakePreviewCache::new();
+        cache
+            .start_render(test_project(), "project.json".into(), (100, 100), 30)
+            .unwrap();
+        cache.insert_frame(0, RgbaImage::new(10, 10));
+        assert!(cache.cached_frames()[0]);
+
+        // When starting a new render.
+        cache
+            .start_render(test_project(), "project.json".into(), (100, 100), 30)
+            .unwrap();
+
+        // Then cached_frames returns all false.
+        let cached = cache.cached_frames();
+        assert!(cached.iter().all(|b| !b));
     }
 }

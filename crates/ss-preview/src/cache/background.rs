@@ -22,6 +22,8 @@ use crate::frame_index::{frame_index_to_time, total_frames};
 struct RenderState {
     /// Rendered frames, indexed by frame number.
     frames: Mutex<Vec<Option<RgbaImage>>>,
+    /// Per-frame cached flags, flipped to `true` as frames complete.
+    cached: Mutex<Vec<bool>>,
     /// Number of frames rendered so far.
     rendered_count: AtomicUsize,
     /// Total number of frames to render.
@@ -75,6 +77,7 @@ impl PreviewCache for BackgroundPreviewCache {
 
         let render_state = Arc::new(RenderState {
             frames: Mutex::new(vec![None; frame_count]),
+            cached: Mutex::new(vec![false; frame_count]),
             rendered_count: AtomicUsize::new(0),
             total: frame_count,
             cancel: AtomicBool::new(false),
@@ -102,6 +105,7 @@ impl PreviewCache for BackgroundPreviewCache {
                 match renderer.render(&project, &project_file, time, &viewport) {
                     Ok(rgba_image) => {
                         rs.frames.lock().unwrap()[index] = Some(rgba_image);
+                        rs.cached.lock().unwrap()[index] = true;
                         rs.rendered_count.fetch_add(1, Ordering::Relaxed);
                     }
                     Err(_e) => {
@@ -137,6 +141,14 @@ impl PreviewCache for BackgroundPreviewCache {
                 rendered: rs.rendered_count.load(Ordering::Relaxed),
                 total: rs.total,
             },
+        }
+    }
+
+    fn cached_frames(&self) -> Vec<bool> {
+        let guard = self.render.lock().unwrap();
+        match guard.as_ref() {
+            None => Vec::new(),
+            Some(rs) => rs.cached.lock().unwrap().clone(),
         }
     }
 

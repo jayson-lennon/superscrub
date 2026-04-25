@@ -142,6 +142,11 @@ impl PlaybackController {
         self.cache.progress()
     }
 
+    /// Get a snapshot of which frame indices are currently cached.
+    pub fn cached_frames(&self) -> Vec<bool> {
+        self.cache.cached_frames()
+    }
+
     /// Update the preview fps (e.g., from settings panel).
     pub fn set_preview_fps(&mut self, fps: u32) {
         self.preview_fps = fps;

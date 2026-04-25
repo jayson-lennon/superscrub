@@ -49,6 +49,11 @@ impl PreviewCacheService {
         self.backend.progress()
     }
 
+    /// Get a snapshot of which frame indices are currently cached.
+    pub fn cached_frames(&self) -> Vec<bool> {
+        self.backend.cached_frames()
+    }
+
     /// Cancel any in-progress render.
     pub fn cancel(&self) {
         self.backend.cancel();

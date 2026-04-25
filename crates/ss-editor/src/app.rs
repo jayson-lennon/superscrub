@@ -155,8 +155,10 @@ impl eframe::App for EditorApp {
                 let project = self.controller.state().project();
                 let current_time = self.controller.state().current_time();
                 let duration = self.controller.state().duration();
+                let cached_frames = self.controller.cached_frames();
+                let preview_fps = self.controller.preview_fps();
 
-                if let Some(action) = self.timeline.show(ui, project, current_time, duration) {
+                if let Some(action) = self.timeline.show(ui, project, current_time, duration, &cached_frames, preview_fps) {
                     let time = match action {
                         crate::timeline_panel::TimelineAction::Click(t)
                         | crate::timeline_panel::TimelineAction::Scrub(t) => t,
@@ -186,8 +188,7 @@ impl eframe::App for EditorApp {
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
             let frame = self.controller.current_frame();
-            let progress = self.controller.render_progress();
-            self.viewport.show(ui, frame.as_ref(), progress);
+            self.viewport.show(ui, frame.as_ref());
         });
     }
 

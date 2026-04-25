@@ -5,7 +5,6 @@
 
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::RgbaImage;
-use ss_preview::PreviewRenderProgress;
 
 /// Manages the viewport panel display.
 #[derive(Default)]
@@ -23,14 +22,8 @@ impl ViewportPanel {
     /// Show the viewport panel.
     ///
     /// - If a frame is available, display it scaled to fit the panel.
-    /// - If rendering is in progress, show a progress bar.
     /// - If no project is loaded, show a placeholder message.
-    pub fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        frame: Option<&RgbaImage>,
-        progress: PreviewRenderProgress,
-    ) {
+    pub fn show(&mut self, ui: &mut egui::Ui, frame: Option<&RgbaImage>) {
         ui.vertical_centered(|ui| {
             ui.label(egui::RichText::new("Viewport").size(14.0).strong());
 
@@ -40,15 +33,6 @@ impl ViewportPanel {
 
             if let Some(image) = frame {
                 self.display_frame(ui, image, available);
-            } else if progress.total > 0 && !progress.is_complete() {
-                // Show progress bar while rendering.
-                ui.add_space(available.y / 3.0);
-                let label = format!("Rendering preview... {:.0}%", progress.fraction() * 100.0);
-                ui.label(&label);
-                ui.add(egui::ProgressBar::new(progress.fraction() as f32).show_percentage());
-            } else if progress.total > 0 && progress.is_complete() {
-                ui.add_space(available.y / 3.0);
-                ui.label("Frame not available at this time");
             } else {
                 ui.add_space(available.y / 3.0);
                 ui.label("No project loaded");

@@ -75,6 +75,37 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
 }
 
 #[test]
+fn cached_frames_delegates_to_cache() {
+    // Given a controller with a loaded project and started render.
+    let (mut ctrl, _, fake_cache) = create_controller(30);
+    load_project(&mut ctrl);
+    ctrl.start_render((100, 50)).unwrap();
+
+    // When calling cached_frames().
+    let cached = ctrl.cached_frames();
+
+    // Then the vec has the correct length and all entries are false.
+    assert_eq!(cached.len(), 300);
+    assert!(cached.iter().all(|b| !b));
+}
+
+#[test]
+fn cached_frames_updates_with_inserted_frames() {
+    // Given a controller with a loaded project and started render.
+    let (mut ctrl, _, fake_cache) = create_controller(30);
+    load_project(&mut ctrl);
+    ctrl.start_render((100, 50)).unwrap();
+
+    // When inserting a frame via the fake cache.
+    fake_cache.insert_frame(0, image::RgbaImage::new(10, 10));
+
+    // Then cached_frames reflects the insertion.
+    let cached = ctrl.cached_frames();
+    assert!(cached[0]);
+    assert!(cached[1..].iter().all(|b| !b));
+}
+
+#[test]
 fn play_starts_audio() {
     // Given a controller with a loaded project.
     let (mut ctrl, fake_audio, _) = create_controller(30);

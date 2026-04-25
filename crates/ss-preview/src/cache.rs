@@ -75,6 +75,13 @@ pub trait PreviewCache: Send + Sync {
     /// Get the current render progress.
     fn progress(&self) -> PreviewRenderProgress;
 
+    /// Get a snapshot of which frame indices are currently cached.
+    ///
+    /// Returns a `Vec<bool>` where `vec[i]` is `true` if frame `i` has been
+    /// rendered. The length equals the total frame count for the current render.
+    /// Returns an empty vec if no render has been started.
+    fn cached_frames(&self) -> Vec<bool>;
+
     /// Cancel any in-progress render.
     ///
     /// Already-rendered frames remain accessible.

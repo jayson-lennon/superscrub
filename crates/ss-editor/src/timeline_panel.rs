@@ -20,6 +20,8 @@ use ss_core::project::{AudioClipDef, Project};
 struct TimelineLayout {
     /// Total height of the timeline widget.
     total_height: f32,
+    /// Y position where the cache status bar starts (relative to origin).
+    cache_bar_y: f32,
     /// Y position where video tracks start (relative to origin).
     video_origin_y: f32,
     /// Number of video track rows.
@@ -36,6 +38,8 @@ struct TimelineLayout {
 const TRACK_HEIGHT: f32 = 24.0;
 const GAP: f32 = 2.0;
 const TIME_BAR_HEIGHT: f32 = 16.0;
+/// Height of the cache status bar (half of `TIME_BAR_HEIGHT`).
+const CACHE_BAR_HEIGHT: f32 = 4.0;
 const DEFAULT_SEPARATOR_HEIGHT: f32 = 4.0;
 
 impl TimelineLayout {
@@ -46,11 +50,13 @@ impl TimelineLayout {
         num_video_tracks: usize,
         num_audio_tracks: usize,
         time_bar_height: f32,
+        cache_bar_height: f32,
         track_height: f32,
         gap: f32,
         separator_height: f32,
     ) -> Self {
-        let video_origin_y = time_bar_height;
+        let cache_bar_y = 0.0;
+        let video_origin_y = cache_bar_height + time_bar_height;
         let video_section_height = num_video_tracks as f32 * (track_height + gap);
         let has_audio = num_audio_tracks > 0;
 
@@ -64,11 +70,15 @@ impl TimelineLayout {
         };
 
         let audio_section_height = num_audio_tracks as f32 * (track_height + gap);
-        let total_height =
-            time_bar_height + video_section_height + separator_space + audio_section_height;
+        let total_height = cache_bar_height
+            + time_bar_height
+            + video_section_height
+            + separator_space
+            + audio_section_height;
 
         Self {
             total_height,
+            cache_bar_y,
             video_origin_y,
             num_video_tracks,
             separator_y,
@@ -141,8 +151,13 @@ impl TimelinePanel {
         project: Option<&Project>,
         current_time: f64,
         duration: f64,
+        cached_frames: &[bool],
+        preview_fps: u32,
     ) -> Option<TimelineAction> {
         let mut action = None;
+
+        // preview_fps is available for future use (e.g. mapping frames to time).
+        let _ = preview_fps;
 
         ui.vertical(|ui| {
             ui.label(RichText::new("Timeline").size(14.0).strong());
@@ -181,6 +196,7 @@ impl TimelinePanel {
                 num_video_tracks,
                 num_audio_tracks,
                 TIME_BAR_HEIGHT,
+                CACHE_BAR_HEIGHT,
                 TRACK_HEIGHT,
                 GAP,
                 self.separator_height,
@@ -193,8 +209,23 @@ impl TimelinePanel {
 
             let origin = response.rect.left_top();
 
-            // Draw time ruler.
-            self.draw_time_ruler(&painter, origin, available_width, duration, TIME_BAR_HEIGHT);
+            // Draw cache status bar.
+            self.draw_cache_bar(
+                &painter,
+                Pos2::new(origin.x, origin.y + layout.cache_bar_y),
+                available_width,
+                cached_frames,
+                CACHE_BAR_HEIGHT,
+            );
+
+            // Draw time ruler (shifted down by cache bar height).
+            self.draw_time_ruler(
+                &painter,
+                Pos2::new(origin.x, origin.y + CACHE_BAR_HEIGHT),
+                available_width,
+                duration,
+                TIME_BAR_HEIGHT,
+            );
 
             // Draw video track lanes with clip blocks.
             for clip in &project.clips {
@@ -304,6 +335,45 @@ impl TimelinePanel {
         });
 
         action
+    }
+
+    /// Draw the cache status bar showing which frames are cached.
+    ///
+    /// Each frame maps to a column of at least 1px wide. Cached frames are
+    /// painted with an extra pixel of width to prevent sub-pixel gaps between
+    /// adjacent columns. Uncached frames are painted dark gray.
+    fn draw_cache_bar(
+        &self,
+        painter: &egui::Painter,
+        origin: Pos2,
+        width: f32,
+        cached_frames: &[bool],
+        height: f32,
+    ) {
+        // Fill the entire bar as uncached.
+        let uncached_color = Color32::from_gray(40);
+        let bar_rect = Rect::from_min_size(origin, Vec2::new(width, height));
+        painter.rect_filled(bar_rect, 0.0, uncached_color);
+
+        if cached_frames.is_empty() {
+            return;
+        }
+
+        let total_frames = cached_frames.len();
+        let column_width = (width / total_frames as f32).max(1.0);
+        let cached_color = Color32::GREEN;
+
+        // Paint cached frames on top.
+        for (index, &is_cached) in cached_frames.iter().enumerate() {
+            if is_cached {
+                let x = origin.x + index as f32 * column_width;
+                let rect = Rect::from_min_size(
+                    Pos2::new(x, origin.y),
+                    Vec2::new(column_width + 1.0, height),
+                );
+                painter.rect_filled(rect, 0.0, cached_color);
+            }
+        }
     }
 
     /// Draw tick marks on the time ruler.
@@ -508,6 +578,7 @@ mod tests {
             2,
             0,
             TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
             TRACK_HEIGHT,
             GAP,
             DEFAULT_SEPARATOR_HEIGHT,
@@ -527,6 +598,7 @@ mod tests {
             1,
             2,
             TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
             TRACK_HEIGHT,
             GAP,
             DEFAULT_SEPARATOR_HEIGHT,
@@ -545,6 +617,7 @@ mod tests {
             1,
             2,
             TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
             TRACK_HEIGHT,
             GAP,
             DEFAULT_SEPARATOR_HEIGHT,
@@ -568,6 +641,7 @@ mod tests {
             1,
             0,
             TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
             TRACK_HEIGHT,
             GAP,
             DEFAULT_SEPARATOR_HEIGHT,
@@ -586,6 +660,7 @@ mod tests {
             1,
             1,
             TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
             TRACK_HEIGHT,
             GAP,
             DEFAULT_SEPARATOR_HEIGHT,
@@ -593,8 +668,11 @@ mod tests {
 
         // Then positions are correct.
         assert_eq!(layout.num_audio_tracks, 1);
-        let expected_audio_y =
-            TIME_BAR_HEIGHT + 1.0_f32 * (TRACK_HEIGHT + GAP) + DEFAULT_SEPARATOR_HEIGHT + GAP;
+        let expected_audio_y = CACHE_BAR_HEIGHT
+            + TIME_BAR_HEIGHT
+            + 1.0_f32 * (TRACK_HEIGHT + GAP)
+            + DEFAULT_SEPARATOR_HEIGHT
+            + GAP;
         assert!((layout.audio_origin_y.unwrap() - expected_audio_y).abs() < f32::EPSILON);
     }
 
@@ -631,7 +709,126 @@ mod tests {
         let ctx = egui::Context::default();
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
             egui::CentralPanel::default().show_inside(ui, |ui| {
-                panel.show(ui, Some(&project), current_time, 10.0);
+                panel.show(ui, Some(&project), current_time, 10.0, &[], 30);
+            });
+        });
+
+        // Then it does not panic.
+    }
+
+    // ============================================================
+    // Cache bar layout tests
+    // ============================================================
+
+    #[test]
+    fn layout_cache_bar_position_is_at_top() {
+        // Given a layout with cache bar.
+        let layout = TimelineLayout::compute(
+            1,
+            0,
+            TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then cache_bar_y is 0 (top of the widget).
+        assert!((layout.cache_bar_y - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn layout_video_origin_accounts_for_cache_bar() {
+        // Given a layout with cache bar.
+        let layout = TimelineLayout::compute(
+            1,
+            0,
+            TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then video_origin_y includes cache bar + time bar.
+        let expected = CACHE_BAR_HEIGHT + TIME_BAR_HEIGHT;
+        assert!((layout.video_origin_y - expected).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn layout_total_height_includes_cache_bar() {
+        // Given a layout with cache bar.
+        let layout_with = TimelineLayout::compute(
+            1,
+            0,
+            TIME_BAR_HEIGHT,
+            CACHE_BAR_HEIGHT,
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+        let layout_without = TimelineLayout::compute(
+            1,
+            0,
+            TIME_BAR_HEIGHT,
+            0.0, // no cache bar
+            TRACK_HEIGHT,
+            GAP,
+            DEFAULT_SEPARATOR_HEIGHT,
+        );
+
+        // Then the difference is exactly CACHE_BAR_HEIGHT.
+        let diff = layout_with.total_height - layout_without.total_height;
+        assert!((diff - CACHE_BAR_HEIGHT).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn show_with_cached_frames_does_not_panic() {
+        // Given a project and some cached frame data.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let mut panel = TimelinePanel::new();
+        let cached = vec![true, false, true, false, true];
+
+        // When showing the timeline with sparse cached frames.
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                panel.show(ui, Some(&project), 2.5, 10.0, &cached, 30);
+            });
+        });
+
+        // Then it does not panic.
+    }
+
+    #[test]
+    fn show_with_empty_cached_frames_does_not_panic() {
+        // Given a project with no cached frames.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let mut panel = TimelinePanel::new();
+
+        // When showing the timeline with empty cached frames.
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                panel.show(ui, Some(&project), 2.5, 10.0, &[], 30);
+            });
+        });
+
+        // Then it does not panic.
+    }
+
+    #[test]
+    fn show_with_all_cached_frames_does_not_panic() {
+        // Given a project where all 300 frames are cached.
+        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let mut panel = TimelinePanel::new();
+        let cached = vec![true; 300];
+
+        // When showing the timeline.
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                panel.show(ui, Some(&project), 2.5, 10.0, &cached, 30);
             });
         });
 
@@ -652,7 +849,7 @@ mod tests {
         let mut action = None;
         let _ = ctx.run_ui(raw_input, |ui| {
             egui::CentralPanel::default().show_inside(ui, |ui| {
-                action = panel.show(ui, Some(project), 5.0, 10.0);
+                action = panel.show(ui, Some(project), 5.0, 10.0, &[], 30);
             });
         });
         action
