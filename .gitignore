@@ -7,6 +7,9 @@
 /target
 Cargo.lock
 
+# Generated example assets
+examples/effects/
+
 # Code analysis
 coverage.lcov
 debt.json
