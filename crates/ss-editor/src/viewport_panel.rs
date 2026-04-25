@@ -99,5 +99,9 @@ fn rgba_to_color_image(image: &RgbaImage) -> ColorImage {
         .pixels()
         .map(|p| egui::Color32::from_rgba_unmultiplied(p.0[0], p.0[1], p.0[2], p.0[3]))
         .collect();
-    ColorImage { size, pixels }
+    ColorImage {
+        size,
+        pixels,
+        source_size: egui::vec2(size[0] as f32, size[1] as f32),
+    }
 }

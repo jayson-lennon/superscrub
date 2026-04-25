@@ -14,8 +14,8 @@ imageproc = "0.25"
 derive_more = { version = "2", features = ["debug"] }
 rayon = "1.10"
 ctrlc = "3"
-eframe = "0.31"
-egui = "0.31"
+eframe = "0.34"
+egui = "0.34"
 dirs = "6"
 clap = { version = "4", features = ["derive"] }
 kanal = "0.1"

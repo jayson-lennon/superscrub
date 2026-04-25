@@ -63,11 +63,6 @@ fn main() -> eframe::Result<()> {
         watcher,
     };
 
-    let app = EditorApp::new(services, config.clone(), project_path).unwrap_or_else(|e| {
-        eprintln!("error: {e:?}");
-        std::process::exit(1);
-    });
-
     let window_size = config.window_size;
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -76,5 +71,19 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
 
-    eframe::run_native("SuperScrub", options, Box::new(|_cc| Ok(Box::new(app))))
+    let app_creator = move |cc: &eframe::CreationContext<'_>| {
+        let app = EditorApp::new(
+            cc.egui_ctx.clone(),
+            services,
+            config.clone(),
+            project_path,
+        )
+        .unwrap_or_else(|e| {
+            eprintln!("error: {e:?}");
+            std::process::exit(1);
+        });
+        Ok(Box::new(app) as Box<dyn eframe::App>)
+    };
+
+    eframe::run_native("SuperScrub", options, Box::new(app_creator))
 }

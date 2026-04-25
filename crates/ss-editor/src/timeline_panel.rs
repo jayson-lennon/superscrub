@@ -631,8 +631,8 @@ mod tests {
 
         // When showing the timeline.
         let ctx = egui::Context::default();
-        let _ = ctx.run(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
                 panel.show(ui, Some(&project), current_time, 10.0);
             });
         });
@@ -652,8 +652,8 @@ mod tests {
         raw_input: egui::RawInput,
     ) -> Option<TimelineAction> {
         let mut action = None;
-        let _ = ctx.run(raw_input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
+        let _ = ctx.run_ui(raw_input, |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
                 action = panel.show(ui, Some(project), 5.0, 10.0);
             });
         });

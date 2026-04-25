@@ -38,6 +38,8 @@ pub struct EditorApp {
     transport: TransportPanel,
     /// Settings panel.
     settings: SettingsPanel,
+    /// Cloned egui context for triggering repaints from background tasks.
+    egui_ctx: egui::Context,
 }
 
 impl EditorApp {
@@ -49,6 +51,7 @@ impl EditorApp {
     ///
     /// Returns an error if the project file cannot be read or parsed.
     pub fn new(
+        egui_ctx: egui::Context,
         services: Services,
         config: AppConfig,
         project_path: PathBuf,
@@ -96,12 +99,13 @@ impl EditorApp {
             timeline: TimelinePanel::new(),
             transport: TransportPanel::new(),
             settings,
+            egui_ctx,
         })
     }
 }
 
 impl eframe::App for EditorApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 1. Poll for project file changes.
         if self.watcher.poll()
             && let Some(path) = self.controller.state().project_file().cloned()
@@ -126,9 +130,11 @@ impl eframe::App for EditorApp {
         if self.controller.state().is_playing() {
             ctx.request_repaint();
         }
+    }
 
-        // 3. Layout: bottom transport, then timeline, then right settings, then central viewport.
-        egui::TopBottomPanel::bottom("transport").show(ctx, |ui| {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Layout: bottom transport, then timeline, then right settings, then central viewport.
+        egui::Panel::bottom("transport").show_inside(ui, |ui| {
             let transport = self.controller.state().transport_state();
             let current_time = self.controller.state().current_time();
             let duration = self.controller.state().duration();
@@ -143,9 +149,9 @@ impl eframe::App for EditorApp {
             }
         });
 
-        egui::TopBottomPanel::bottom("timeline")
+        egui::Panel::bottom("timeline")
             .resizable(true)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 let project = self.controller.state().project();
                 let current_time = self.controller.state().current_time();
                 let duration = self.controller.state().duration();
@@ -162,10 +168,10 @@ impl eframe::App for EditorApp {
                 }
             });
 
-        egui::SidePanel::right("settings")
+        egui::Panel::right("settings")
             .resizable(true)
-            .default_width(200.0)
-            .show(ctx, |ui| {
+            .default_size(200.0)
+            .show_inside(ui, |ui| {
                 if let Some(change) = self.settings.show(ui) {
                     self.config.preview_divisor = change.preview_divisor;
                     self.config.preview_fps = change.preview_fps;
@@ -178,14 +184,14 @@ impl eframe::App for EditorApp {
                 }
             });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             let frame = self.controller.current_frame();
             let progress = self.controller.render_progress();
             self.viewport.show(ui, frame.as_ref(), progress);
         });
     }
 
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+    fn on_exit(&mut self) {
         let _ = self.config.save();
     }
 }
