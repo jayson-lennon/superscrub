@@ -21,8 +21,16 @@ const COLORS: &[(&str, Rgba<u8>, Rgba<u8>)] = &[
     ("red", Rgba([220, 50, 50, 255]), Rgba([120, 20, 20, 255])),
     ("green", Rgba([50, 180, 50, 255]), Rgba([20, 100, 20, 255])),
     ("blue", Rgba([50, 80, 220, 255]), Rgba([20, 30, 120, 255])),
-    ("yellow", Rgba([230, 210, 40, 255]), Rgba([130, 120, 15, 255])),
-    ("magenta", Rgba([200, 50, 200, 255]), Rgba([110, 20, 110, 255])),
+    (
+        "yellow",
+        Rgba([230, 210, 40, 255]),
+        Rgba([130, 120, 15, 255]),
+    ),
+    (
+        "magenta",
+        Rgba([200, 50, 200, 255]),
+        Rgba([110, 20, 110, 255]),
+    ),
 ];
 
 /// Checkerboard tile size in pixels.
@@ -63,7 +71,7 @@ fn generate_images(dir: &Path) {
         let mut img = RgbaImage::new(400, 400);
         for y in 0..400 {
             for x in 0..400 {
-                let checker = ((x / TILE) + (y / TILE)) % 2 == 0;
+                let checker = ((x / TILE) + (y / TILE)).is_multiple_of(2);
                 img.put_pixel(x, y, if checker { *bright } else { *dark });
             }
         }
