@@ -26,6 +26,7 @@ pub fn total_frames(fps: u32, duration: f64) -> usize {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use rstest::rstest;
 

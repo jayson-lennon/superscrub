@@ -1,5 +1,7 @@
 //! Test fixture builders for render tests.
 
+#![allow(dead_code)]
+
 use ss_core::project::{EncodingConfig, Project};
 
 /// The project file path used in tests.

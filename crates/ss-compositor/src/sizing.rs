@@ -23,6 +23,7 @@ impl PlacedRect {
     ///
     /// Multiplies all fields by the ratio `(viewport_size / project_resolution)`.
     /// When viewport equals project resolution, this is an identity transform.
+    #[must_use]
     pub fn scale_to_viewport(
         &self,
         project_resolution: (u32, u32),
@@ -135,6 +136,7 @@ fn compute_anchor_offset(
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 mod tests {
     use super::compute_placement;
     use ss_core::clip::{FitAnchor, FitMode, Sizing};

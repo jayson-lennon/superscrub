@@ -403,7 +403,7 @@ mod tests {
 
         // Then the result stays within [0, 1].
         assert!(
-            result >= 0.0 && result <= 1.0,
+(0.0..=1.0).contains(&result),
             "result {result} is out of bounds"
         );
     }
@@ -508,7 +508,7 @@ mod tests {
             },
             AnimationTrack {
                 property: AnimatableProperty::Rotation,
-                keyframes: vec![kf(0.0, 0.0), kf(10.0, 6.28)],
+                keyframes: vec![kf(0.0, 0.0), kf(10.0, std::f32::consts::TAU)],
             },
             AnimationTrack {
                 property: AnimatableProperty::Opacity,
@@ -524,7 +524,7 @@ mod tests {
         assert!((resolved.translate.y - 35.0).abs() < 1e-3);
         assert!((resolved.scale.x - 1.5).abs() < 1e-3);
         assert!((resolved.scale.y - 2.0).abs() < 1e-3);
-        assert!((resolved.rotation - 3.14).abs() < 1e-2);
+        assert!((resolved.rotation - std::f32::consts::PI).abs() < 1e-2);
         assert!((resolved.opacity - 0.5).abs() < 1e-3);
     }
 

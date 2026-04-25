@@ -68,6 +68,7 @@ impl AnimBuilder {
     }
 
     /// Appends a keyframe with [`Easing::Linear`].
+    #[must_use]
     pub fn keyframe(mut self, time: f64, value: f32) -> Self {
         self.keyframes.push(Keyframe {
             time,
@@ -78,6 +79,7 @@ impl AnimBuilder {
     }
 
     /// Appends a keyframe with an explicit easing curve.
+    #[must_use]
     pub fn keyframe_with_easing(mut self, time: f64, value: f32, easing: Easing) -> Self {
         self.keyframes.push(Keyframe {
             time,
@@ -114,6 +116,7 @@ impl AnimBuilder {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use rstest::rstest;

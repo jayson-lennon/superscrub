@@ -135,6 +135,7 @@ pub fn clamp_time_range(start: Option<f64>, end: Option<f64>, duration: f64) -> 
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::{clamp_time_range, range_frame_count};
 

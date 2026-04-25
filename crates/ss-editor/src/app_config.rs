@@ -144,8 +144,7 @@ mod tests {
         #[case] expected: (u32, u32),
     ) {
         // Given a config with the given preview divisor and a 1920×1080 project.
-        let mut config = AppConfig::default();
-        config.preview_divisor = divisor;
+        let config = AppConfig { preview_divisor: divisor, ..Default::default() };
         let project_res = [1920, 1080];
 
         // When computing the preview resolution.
@@ -161,11 +160,12 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.json");
 
-        let mut config = AppConfig::default();
-        config.preview_divisor = 4;
-        config.preview_fps = 60;
-        config.window_size = [1920, 1080];
-        config.last_project = Some("/foo/bar.json".into());
+        let config = AppConfig {
+            preview_divisor: 4,
+            preview_fps: 60,
+            window_size: [1920, 1080],
+            last_project: Some("/foo/bar.json".into()),
+        };
 
         // When saving and reloading.
         let json = serde_json::to_string_pretty(&config).unwrap();

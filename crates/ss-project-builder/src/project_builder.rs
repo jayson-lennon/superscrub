@@ -85,12 +85,14 @@ impl ProjectBuilder {
     }
 
     /// Appends a [`ClipBuilder`] to the project's clip list.
+    #[must_use]
     pub fn add_clip(mut self, clip: ClipBuilder) -> Self {
         self.clip_builders.push(clip);
         self
     }
 
     /// Appends an [`AudioClipBuilder`] to the project's audio clip list.
+    #[must_use]
     pub fn add_audio_clip(mut self, clip: AudioClipBuilder) -> Self {
         self.audio_clip_builders.push(clip);
         self

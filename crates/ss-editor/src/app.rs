@@ -39,6 +39,7 @@ pub struct EditorApp {
     /// Settings panel.
     settings: SettingsPanel,
     /// Cloned egui context for triggering repaints from background tasks.
+    #[allow(dead_code)] // will be used by background repaint tasks
     egui_ctx: egui::Context,
 }
 

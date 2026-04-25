@@ -1,7 +1,9 @@
+#![allow(clippy::float_cmp)]
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use ss_audio::{AudioClipInfo, AudioEngineService, AudioPlaybackState, FakeAudioEngine};
+
+use ss_audio::{AudioEngineService, AudioPlaybackState, FakeAudioEngine};
 use ss_editor::EditorState;
 use ss_editor::PlaybackController;
 use ss_preview::{FakePreviewCache, PreviewCacheService};
@@ -77,7 +79,7 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
 #[test]
 fn cached_frames_delegates_to_cache() {
     // Given a controller with a loaded project and started render.
-    let (mut ctrl, _, fake_cache) = create_controller(30);
+    let (mut ctrl, _, _fake_cache) = create_controller(30);
     load_project(&mut ctrl);
     ctrl.start_render((100, 50)).unwrap();
 
@@ -212,7 +214,7 @@ fn start_render_delegates_to_cache() {
 
 #[test]
 fn render_progress_delegates_to_cache() {
-    let (mut ctrl, _, fake_cache) = create_controller(30);
+    let (mut ctrl, _, _fake_cache) = create_controller(30);
     load_project(&mut ctrl);
     ctrl.start_render((100, 50)).unwrap();
 

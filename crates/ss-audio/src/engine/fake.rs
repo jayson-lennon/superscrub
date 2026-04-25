@@ -162,6 +162,7 @@ impl AudioEngine for FakeAudioEngine {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use std::sync::Arc;
     use std::sync::atomic::Ordering;

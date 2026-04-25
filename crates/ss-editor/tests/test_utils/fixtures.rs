@@ -1,5 +1,7 @@
 //! Test fixture builders for editor tests.
 
+#![allow(dead_code)]
+
 use ss_core::project::{EncodingConfig, Project};
 use ss_core::test_utils::fixtures::build_image_clip;
 

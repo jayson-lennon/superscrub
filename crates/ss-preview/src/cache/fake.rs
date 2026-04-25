@@ -124,6 +124,7 @@ impl PreviewCache for FakePreviewCache {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     //! Tests for the fake preview cache.
     //!

@@ -38,6 +38,7 @@ impl BuilderError {
     ///     .in_context("clip \"background\"");
     /// // Displays as: clip "background" → animation "opacity": empty keyframes
     /// ```
+    #[must_use]
     pub fn in_context(mut self, segment: impl Into<String>) -> Self {
         self.path.insert(0, segment.into());
         self

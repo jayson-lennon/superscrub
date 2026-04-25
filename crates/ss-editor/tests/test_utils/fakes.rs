@@ -1,5 +1,7 @@
 //! Creates test services with fake backends.
 
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use ss_audio::{AudioEngineService, FakeAudioEngine};

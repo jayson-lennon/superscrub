@@ -204,6 +204,7 @@ impl serde::Serialize for Project {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use std::path::Path;
 

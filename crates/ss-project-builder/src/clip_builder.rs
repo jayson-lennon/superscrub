@@ -143,6 +143,7 @@ impl ClipBuilder {
     /// Appends an [`AnimBuilder`] to the clip's animation list.
     ///
     /// Animations are built and validated when [`build`](ClipBuilder::build) is called.
+    #[must_use]
     pub fn add_animation(mut self, anim: AnimBuilder) -> Self {
         self.anim_builders.push(anim);
         self
@@ -227,6 +228,7 @@ fn property_display_name(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use rstest::rstest;
