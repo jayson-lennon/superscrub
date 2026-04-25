@@ -1,0 +1,18 @@
+[package]
+name = "ss-effects"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ss-core = { path = "../ss-core" }
+ss-project-builder = { path = "../ss-project-builder" }
+bon = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -149,7 +149,13 @@ mod tests {
     #[rstest::rstest]
     #[case::default_range(None, None, Duration::from_secs_f64(30.0), 0.0, 30.0)]
     #[case::clamped_to_bounds(Some(-5.0), Some(100.0), Duration::from_secs_f64(30.0), 0.0, 30.0)]
-    #[case::start_greater_than_end(Some(20.0), Some(10.0), Duration::from_secs_f64(30.0), 20.0, 20.0)]
+    #[case::start_greater_than_end(
+        Some(20.0),
+        Some(10.0),
+        Duration::from_secs_f64(30.0),
+        20.0,
+        20.0
+    )]
     fn clamp_time_range_produces_correct_bounds(
         #[case] start: Option<f64>,
         #[case] end: Option<f64>,

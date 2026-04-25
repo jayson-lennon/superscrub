@@ -149,6 +149,48 @@ impl ClipBuilder {
         self
     }
 
+    /// Consumes the builder and returns its constituent parts.
+    ///
+    /// The inverse of [`from_parts`](ClipBuilder::from_parts) — enables external
+    /// crates to decompose and rebuild clips for transformation.
+    pub fn into_parts(self) -> (ClipParams, Vec<AnimBuilder>) {
+        (self.params, self.anim_builders)
+    }
+
+    /// Reconstructs a `ClipBuilder` from its parts.
+    ///
+    /// The inverse of [`into_parts`](ClipBuilder::into_parts).
+    pub fn from_parts(params: ClipParams, anim_builders: Vec<AnimBuilder>) -> Self {
+        Self {
+            params,
+            anim_builders,
+        }
+    }
+
+    /// Returns read-only access to the clip params.
+    ///
+    /// Useful for inspecting clip metadata without deconstructing.
+    pub fn params(&self) -> &ClipParams {
+        &self.params
+    }
+
+    /// Returns a new `ClipBuilder` shifted by `offset` seconds on the timeline.
+    ///
+    /// Shifts `start_time`, `end_time`, and all animation keyframe times by
+    /// the given offset. Use positive offsets to position clips later in the
+    /// timeline, negative to shift earlier.
+    #[must_use]
+    pub fn with_offset(self, offset: f64) -> Self {
+        let (mut params, anim_builders) = self.into_parts();
+        params.start_time += offset;
+        params.end_time += offset;
+        let shifted_anims = anim_builders
+            .into_iter()
+            .map(|ab| ab.with_time_offset(offset))
+            .collect();
+        Self::from_parts(params, shifted_anims)
+    }
+
     /// Consumes the builder, validates, and returns a [`ClipDef`].
     ///
     /// # Validation
@@ -467,5 +509,148 @@ mod tests {
                 path: "img.png".into(),
             }
         );
+    }
+
+    #[test]
+    fn into_parts_then_from_parts_roundtrip() {
+        // Given a ClipBuilder with params and animations.
+        let params = ClipParams::builder()
+            .id("roundtrip")
+            .path("img.png")
+            .end_time(10.0)
+            .z_index(5)
+            .build();
+        let anim = AnimBuilder::opacity().keyframe(0.0, 1.0).keyframe(5.0, 0.0);
+        let original = ClipBuilder::new(params).add_animation(anim);
+
+        // When deconstructing and reconstructing.
+        let (p, anims) = original.into_parts();
+        let reconstructed = ClipBuilder::from_parts(p, anims);
+
+        // Then building both produces equivalent results.
+        // (We can't compare the originals since into_parts consumes, so verify build succeeds.)
+        let clip = reconstructed.build().unwrap();
+        assert_eq!(clip.id, "roundtrip");
+        assert_eq!(clip.z_index, 5);
+        assert_eq!(clip.animations.len(), 1);
+        assert_eq!(clip.animations[0].keyframes.len(), 2);
+    }
+
+    #[test]
+    fn params_returns_original_params() {
+        // Given a ClipBuilder with specific params.
+        let params = ClipParams::builder()
+            .id("peek")
+            .path("test.png")
+            .end_time(7.0)
+            .z_index(3)
+            .build();
+        let builder = ClipBuilder::new(params);
+
+        // When accessing params.
+        let p = builder.params();
+
+        // Then the values match.
+        assert_eq!(p.id, "peek");
+        assert_eq!(p.z_index, 3);
+        assert_eq!(p.end_time, 7.0);
+    }
+
+    #[test]
+    fn with_offset_shifts_start_end_and_keyframe_times() {
+        // Given a clip with start=0, end=10 and two opacity keyframes.
+        let params = ClipParams::builder()
+            .id("shift")
+            .path("img.png")
+            .start_time(0.0)
+            .end_time(10.0)
+            .build();
+        let anim = AnimBuilder::opacity().keyframe(0.0, 1.0).keyframe(5.0, 0.0);
+        let clip = ClipBuilder::new(params).add_animation(anim);
+
+        // When applying an offset of 5.0.
+        let result = clip.with_offset(5.0).build().unwrap();
+
+        // Then start_time and end_time are shifted.
+        assert_eq!(result.start_time, 5.0);
+        assert_eq!(result.end_time, 15.0);
+        // And keyframe times are shifted.
+        assert_eq!(result.animations[0].keyframes[0].time, 5.0);
+        assert_eq!(result.animations[0].keyframes[1].time, 10.0);
+    }
+
+    #[test]
+    fn with_offset_with_zero_offset_is_identity() {
+        // Given a clip with start=2, end=8 and a keyframe at time 3.
+        let params = ClipParams::builder()
+            .id("identity")
+            .path("img.png")
+            .start_time(2.0)
+            .end_time(8.0)
+            .build();
+        let anim = AnimBuilder::scale_x().keyframe(3.0, 2.0);
+        let clip = ClipBuilder::new(params).add_animation(anim);
+
+        // When applying an offset of 0.0.
+        let result = clip.with_offset(0.0).build().unwrap();
+
+        // Then nothing changes.
+        assert_eq!(result.start_time, 2.0);
+        assert_eq!(result.end_time, 8.0);
+        assert_eq!(result.animations[0].keyframes[0].time, 3.0);
+    }
+
+    #[test]
+    fn with_offset_on_clip_with_no_animations_shifts_only_times() {
+        // Given a clip with no animations.
+        let params = ClipParams::builder()
+            .id("no-anim")
+            .path("img.png")
+            .start_time(1.0)
+            .end_time(5.0)
+            .build();
+        let clip = ClipBuilder::new(params);
+
+        // When applying an offset of 10.0.
+        let result = clip.with_offset(10.0).build().unwrap();
+
+        // Then start/end are shifted and animations remain empty.
+        assert_eq!(result.start_time, 11.0);
+        assert_eq!(result.end_time, 15.0);
+        assert!(result.animations.is_empty());
+    }
+
+    #[test]
+    fn with_offset_shifts_multiple_animations() {
+        // Given a clip with two animations, each with keyframes.
+        let params = ClipParams::builder()
+            .id("multi")
+            .path("img.png")
+            .start_time(0.0)
+            .end_time(10.0)
+            .build();
+        let opacity = AnimBuilder::opacity()
+            .keyframe(0.0, 1.0)
+            .keyframe(10.0, 0.0);
+        let scale = AnimBuilder::scale_x()
+            .keyframe(0.0, 1.0)
+            .keyframe(10.0, 2.0);
+        let clip = ClipBuilder::new(params)
+            .add_animation(opacity)
+            .add_animation(scale);
+
+        // When applying an offset of 3.0.
+        let result = clip.with_offset(3.0).build().unwrap();
+
+        // Then all keyframe times across both animations are shifted.
+        assert_eq!(result.start_time, 3.0);
+        assert_eq!(result.end_time, 13.0);
+        assert_eq!(result.animations.len(), 2);
+        // Opacity animation.
+        assert_eq!(result.animations[0].keyframes[0].time, 3.0);
+        assert_eq!(result.animations[0].keyframes[1].time, 13.0);
+        // Scale animation.
+        assert_eq!(result.animations[1].keyframes[0].time, 3.0);
+        assert_eq!(result.animations[1].keyframes[1].time, 13.0);
     }
 }

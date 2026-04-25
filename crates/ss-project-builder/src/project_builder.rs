@@ -91,6 +91,37 @@ impl ProjectBuilder {
         self
     }
 
+    /// Appends multiple [`ClipBuilder`]s without time-shifting them.
+    ///
+    /// Equivalent to chaining multiple [`add_clip`](ProjectBuilder::add_clip) calls.
+    #[must_use]
+    pub fn add_clips(mut self, clips: impl IntoIterator<Item = ClipBuilder>) -> Self {
+        self.clip_builders.extend(clips);
+        self
+    }
+
+    /// Applies a time offset to each clip, then appends them to the project.
+    ///
+    /// This is the primary entry point for composing effects (which produce
+    /// clips relative to t=0) into a timeline at a specific position.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let clips = ken_burns.build();
+    /// project.add_clips_at(5.0, clips); // Ken Burns starts at t=5s
+    /// ```
+    #[must_use]
+    pub fn add_clips_at(
+        mut self,
+        offset: f64,
+        clips: impl IntoIterator<Item = ClipBuilder>,
+    ) -> Self {
+        self.clip_builders
+            .extend(clips.into_iter().map(|c| c.with_offset(offset)));
+        self
+    }
+
     /// Appends an [`AudioClipBuilder`] to the project's audio clip list.
     #[must_use]
     pub fn add_audio_clip(mut self, clip: AudioClipBuilder) -> Self {
@@ -218,6 +249,7 @@ impl ProjectBuilder {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use crate::{AnimBuilder, AudioClipParams, ClipParams};
@@ -627,5 +659,208 @@ mod tests {
         assert_eq!(back.clips[0].id, "bg");
         assert_eq!(back.clips[0].animations.len(), 1);
         assert_eq!(back.clips[0].animations[0].keyframes.len(), 2);
+    }
+
+    // ============================================================
+    // Batch clip methods
+    // ============================================================
+
+    #[test]
+    fn add_clips_adds_multiple_clips_at_once() {
+        // Given a project and three clips.
+        let params = minimal_params();
+        let clip1 = ClipBuilder::new(
+            ClipParams::builder()
+                .id("a")
+                .path("a.png")
+                .end_time(5.0)
+                .build(),
+        );
+        let clip2 = ClipBuilder::new(
+            ClipParams::builder()
+                .id("b")
+                .path("b.png")
+                .end_time(5.0)
+                .build(),
+        );
+        let clip3 = ClipBuilder::new(
+            ClipParams::builder()
+                .id("c")
+                .path("c.png")
+                .end_time(5.0)
+                .build(),
+        );
+
+        // When adding all three via add_clips.
+        let project = ProjectBuilder::new(params)
+            .add_clips([clip1, clip2, clip3])
+            .build()
+            .unwrap();
+
+        // Then all three clips are present in order.
+        assert_eq!(project.clips.len(), 3);
+        assert_eq!(project.clips[0].id, "a");
+        assert_eq!(project.clips[1].id, "b");
+        assert_eq!(project.clips[2].id, "c");
+    }
+
+    #[test]
+    fn add_clips_with_empty_iterator_is_no_op() {
+        // Given a project with no clips.
+        let params = minimal_params();
+
+        // When adding an empty iterator.
+        let project = ProjectBuilder::new(params)
+            .add_clips(Vec::<ClipBuilder>::new())
+            .build()
+            .unwrap();
+
+        // Then the project has no clips.
+        assert!(project.clips.is_empty());
+    }
+
+    #[test]
+    fn add_clips_followed_by_add_clip_preserves_order() {
+        // Given a project.
+        let params = minimal_params();
+        let batch_clip = ClipBuilder::new(
+            ClipParams::builder()
+                .id("batch")
+                .path("batch.png")
+                .end_time(5.0)
+                .build(),
+        );
+        let single_clip = ClipBuilder::new(
+            ClipParams::builder()
+                .id("single")
+                .path("single.png")
+                .end_time(5.0)
+                .build(),
+        );
+
+        // When adding via add_clips then add_clip.
+        let project = ProjectBuilder::new(params)
+            .add_clips([batch_clip])
+            .add_clip(single_clip)
+            .build()
+            .unwrap();
+
+        // Then order is preserved: batch first, then single.
+        assert_eq!(project.clips.len(), 2);
+        assert_eq!(project.clips[0].id, "batch");
+        assert_eq!(project.clips[1].id, "single");
+    }
+
+    #[test]
+    fn add_clips_at_shifts_all_clips_by_offset() {
+        // Given two clips at t=0..10.
+        let params = minimal_params();
+        let clip1 = ClipBuilder::new(
+            ClipParams::builder()
+                .id("a")
+                .path("a.png")
+                .start_time(0.0)
+                .end_time(10.0)
+                .build(),
+        );
+        let clip2 = ClipBuilder::new(
+            ClipParams::builder()
+                .id("b")
+                .path("b.png")
+                .start_time(0.0)
+                .end_time(10.0)
+                .build(),
+        );
+
+        // When adding at offset 5.0.
+        let project = ProjectBuilder::new(params)
+            .add_clips_at(5.0, [clip1, clip2])
+            .build()
+            .unwrap();
+
+        // Then both clips are shifted to t=5..15.
+        assert_eq!(project.clips.len(), 2);
+        assert_eq!(project.clips[0].start_time, 5.0);
+        assert_eq!(project.clips[0].end_time, 15.0);
+        assert_eq!(project.clips[1].start_time, 5.0);
+        assert_eq!(project.clips[1].end_time, 15.0);
+    }
+
+    #[test]
+    fn add_clips_at_with_zero_offset_is_equivalent_to_add_clips() {
+        // Given two identical sets of clips.
+        let params1 = minimal_params();
+        let params2 = minimal_params();
+
+        let clips1 = vec![ClipBuilder::new(
+            ClipParams::builder()
+                .id("a")
+                .path("a.png")
+                .start_time(2.0)
+                .end_time(8.0)
+                .build(),
+        )];
+        let clips2 = vec![ClipBuilder::new(
+            ClipParams::builder()
+                .id("a")
+                .path("a.png")
+                .start_time(2.0)
+                .end_time(8.0)
+                .build(),
+        )];
+
+        // When using add_clips vs add_clips_at(0.0).
+        let p1 = ProjectBuilder::new(params1)
+            .add_clips(clips1)
+            .build()
+            .unwrap();
+        let p2 = ProjectBuilder::new(params2)
+            .add_clips_at(0.0, clips2)
+            .build()
+            .unwrap();
+
+        // Then start/end times are identical.
+        assert_eq!(p1.clips[0].start_time, p2.clips[0].start_time);
+        assert_eq!(p1.clips[0].end_time, p2.clips[0].end_time);
+    }
+
+    #[test]
+    fn add_clips_at_shifts_keyframe_times() {
+        // Given a clip with an opacity keyframe at t=3.
+        let params = minimal_params();
+        let clip = ClipBuilder::new(
+            ClipParams::builder()
+                .id("anim")
+                .path("img.png")
+                .end_time(10.0)
+                .build(),
+        )
+        .add_animation(AnimBuilder::opacity().keyframe(3.0, 1.0));
+
+        // When adding at offset 7.0.
+        let project = ProjectBuilder::new(params)
+            .add_clips_at(7.0, [clip])
+            .build()
+            .unwrap();
+
+        // Then the keyframe time is shifted to 10.0.
+        assert_eq!(project.clips[0].start_time, 7.0);
+        assert_eq!(project.clips[0].end_time, 17.0);
+        assert_eq!(project.clips[0].animations[0].keyframes[0].time, 10.0);
+    }
+
+    #[test]
+    fn add_clips_at_with_empty_iterator_is_no_op() {
+        // Given a project.
+        let params = minimal_params();
+
+        // When adding empty clips at offset 5.0.
+        let project = ProjectBuilder::new(params)
+            .add_clips_at(5.0, Vec::<ClipBuilder>::new())
+            .build()
+            .unwrap();
+
+        // Then the project has no clips.
+        assert!(project.clips.is_empty());
     }
 }
