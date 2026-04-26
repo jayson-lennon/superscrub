@@ -5,7 +5,7 @@
 //! a fully resolved transform state. For groups, it recursively resolves
 //! all children with composed ancestor transforms.
 
-use tracing::trace;
+use tracing::{instrument, trace};
 
 use crate::animation::{AnimatableProperty, Easing, Keyframe};
 use crate::item::{ItemContent, ItemDef};
@@ -219,6 +219,7 @@ fn resolve_item_recursive(
 /// # Errors
 ///
 /// Returns an error if any animation track has empty keyframes.
+#[instrument(skip_all)]
 pub fn resolve_items(
     items: &[ItemDef],
     time: f64,

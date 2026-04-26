@@ -413,6 +413,25 @@ fn clip_at_exact_end_time_is_inactive() {
     );
 }
 
+#[test]
+fn zero_opacity_clip_does_not_appear() {
+    // Given a clip with opacity animated to exactly 0.
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
+    clip.animations = vec![AnimationTrack {
+        property: AnimatableProperty::Opacity,
+        keyframes: vec![kf(0.0, 0.0), kf(10.0, 0.0)],
+    }];
+    let project = make_project_with_items(vec![clip]);
+    let provider = red_provider();
+
+    // When rendering at t=5.
+    let frame = render_frame(&project, &provider, 5.0);
+
+    // Then the frame is the background color — the clip contributed nothing.
+    let pixel = pixel_color(&frame, 50, 50);
+    assert_eq!(pixel, DEFAULT_BG, "clip with zero opacity should not appear");
+}
+
 // ============================================================
 // Group z-ordering rendering tests
 // ============================================================

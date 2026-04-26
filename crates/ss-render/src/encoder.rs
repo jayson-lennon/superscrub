@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use error_stack::{Report, ResultExt};
 use image::RgbaImage;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use ss_core::project::EncodingConfig;
 
@@ -131,6 +131,7 @@ impl FrameEncoder for FfmpegEncoder {
         "ffmpeg"
     }
 
+    #[instrument(name = "send_frame", skip_all)]
     fn send_frame(&self, frame: &RgbaImage) -> Result<(), Report<EncodeError>> {
         let mut guard = self.state.lock();
         let state = guard

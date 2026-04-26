@@ -11,7 +11,7 @@ use ss_compositor::FrameRendererService;
 use ss_compositor::Viewport;
 use ss_core::project::Project;
 use ss_preview::frame_index_to_time;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 use crate::encoder::FrameEncoder;
 use crate::progress::{ProgressTracker, RenderPhase};
@@ -57,6 +57,11 @@ impl RenderJob {
     /// Returns [`RenderError`] if rendering, encoding, or finalization fails,
     /// or if the render is cancelled.
     #[allow(clippy::too_many_arguments)]
+    #[instrument(name = "render_job", skip_all, fields(
+        start_time = %format!("{start_time:.3}"),
+        end_time = %format!("{end_time:.3}"),
+        fps = project.fps,
+    ))]
     pub fn render(
         &self,
         encoder: &dyn FrameEncoder,
@@ -73,10 +78,7 @@ impl RenderJob {
 
         progress_tracker.set_phase(RenderPhase::Rendering);
 
-        info!(
-            "render started: frames={}, range=({:?}, {:?})",
-            total, start_time, end_time
-        );
+        info!(total, "render started");
 
         for i in 0..total {
             // Check cancellation between frames.
