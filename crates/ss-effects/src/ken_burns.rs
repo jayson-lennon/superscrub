@@ -247,28 +247,37 @@ impl KenBurnsBuilder {
                 seg.zoom_end,
             );
 
-            // Scale animation.
+            // Segment visibility window: the clip is the topmost visible layer from
+            // when the clip above finishes fading, until this clip finishes fading.
+            let seg_start = if i > 0 {
+                timings[i - 1].fade_end
+            } else {
+                0.0
+            };
+            let seg_end = timings[i].fade_end;
+
+            // Scale animation scoped to segment visibility.
             let scale_anim = AnimBuilder::scale_x()
-                .keyframe_with_easing(0.0, keyframes.scale_start, seg.easing)
-                .keyframe_with_easing(params.duration, keyframes.scale_end, seg.easing);
+                .keyframe_with_easing(seg_start, keyframes.scale_start, seg.easing)
+                .keyframe_with_easing(seg_end, keyframes.scale_end, seg.easing);
             clip_builder = clip_builder.add_animation(scale_anim);
 
             let scale_y_anim = AnimBuilder::scale_y()
-                .keyframe_with_easing(0.0, keyframes.scale_start, seg.easing)
-                .keyframe_with_easing(params.duration, keyframes.scale_end, seg.easing);
+                .keyframe_with_easing(seg_start, keyframes.scale_start, seg.easing)
+                .keyframe_with_easing(seg_end, keyframes.scale_end, seg.easing);
             clip_builder = clip_builder.add_animation(scale_y_anim);
 
-            // Translate animations.
+            // Translate animations scoped to segment visibility.
             if let Some((tx_start, tx_end)) = keyframes.translate_x {
                 let tx_anim = AnimBuilder::translate_x()
-                    .keyframe_with_easing(0.0, tx_start, seg.easing)
-                    .keyframe_with_easing(params.duration, tx_end, seg.easing);
+                    .keyframe_with_easing(seg_start, tx_start, seg.easing)
+                    .keyframe_with_easing(seg_end, tx_end, seg.easing);
                 clip_builder = clip_builder.add_animation(tx_anim);
             }
             if let Some((ty_start, ty_end)) = keyframes.translate_y {
                 let ty_anim = AnimBuilder::translate_y()
-                    .keyframe_with_easing(0.0, ty_start, seg.easing)
-                    .keyframe_with_easing(params.duration, ty_end, seg.easing);
+                    .keyframe_with_easing(seg_start, ty_start, seg.easing)
+                    .keyframe_with_easing(seg_end, ty_end, seg.easing);
                 clip_builder = clip_builder.add_animation(ty_anim);
             }
 
@@ -460,6 +469,90 @@ mod tests {
             .unwrap();
         assert_eq!(scale_x.keyframes[0].value, 0.5);
         assert_eq!(scale_x.keyframes[1].value, 2.0);
+    }
+
+    #[test]
+    fn multi_segment_scale_keyframes_scoped_to_visibility_window() {
+        // Given three segments with hold=5.0, fade=2.0.
+        let params = KenBurnsParams::builder()
+            .duration(30.0)
+            .resolution([1920, 1080])
+            .default_hold_duration(5.0)
+            .default_fade_duration(2.0)
+            .build();
+
+        // When building.
+        let clips = KenBurnsBuilder::new(params)
+            .add_segment(minimal_segment("img1.png", KenBurnsDirection::ZoomInCenter))
+            .add_segment(minimal_segment("img2.png", KenBurnsDirection::ZoomInCenter))
+            .add_segment(minimal_segment("img3.png", KenBurnsDirection::ZoomInCenter))
+            .build();
+
+        let built: Vec<_> = clips.into_iter().map(|cb| cb.build().unwrap()).collect();
+
+        // Segment 0 (top of stack): visible from 0.0 to fade_end=7.0.
+        let scale_0 = built[0]
+            .animations
+            .iter()
+            .find(|a| a.property == ss_core::AnimatableProperty::ScaleX)
+            .unwrap();
+        assert_eq!(scale_0.keyframes[0].time, 0.0);
+        assert_eq!(scale_0.keyframes[1].time, 7.0);
+
+        // Segment 1 (middle): visible from fade_end[0]=7.0 to fade_end[1]=14.0.
+        let scale_1 = built[1]
+            .animations
+            .iter()
+            .find(|a| a.property == ss_core::AnimatableProperty::ScaleX)
+            .unwrap();
+        assert_eq!(scale_1.keyframes[0].time, 7.0);
+        assert_eq!(scale_1.keyframes[1].time, 14.0);
+
+        // Segment 2 (bottom): visible from fade_end[1]=14.0 to fade_end[2]=21.0.
+        let scale_2 = built[2]
+            .animations
+            .iter()
+            .find(|a| a.property == ss_core::AnimatableProperty::ScaleX)
+            .unwrap();
+        assert_eq!(scale_2.keyframes[0].time, 14.0);
+        assert_eq!(scale_2.keyframes[1].time, 21.0);
+    }
+
+    #[test]
+    fn multi_segment_translate_scoped_to_visibility_window() {
+        // Given two segments with ZoomInLeft (has translate_x).
+        let params = KenBurnsParams::builder()
+            .duration(30.0)
+            .resolution([1920, 1080])
+            .default_hold_duration(5.0)
+            .default_fade_duration(2.0)
+            .build();
+
+        // When building.
+        let clips = KenBurnsBuilder::new(params)
+            .add_segment(minimal_segment("img1.png", KenBurnsDirection::ZoomInLeft))
+            .add_segment(minimal_segment("img2.png", KenBurnsDirection::ZoomInLeft))
+            .build();
+
+        let built: Vec<_> = clips.into_iter().map(|cb| cb.build().unwrap()).collect();
+
+        // Segment 0: translate_x scoped from 0.0 to 7.0.
+        let tx_0 = built[0]
+            .animations
+            .iter()
+            .find(|a| a.property == ss_core::AnimatableProperty::TranslateX)
+            .unwrap();
+        assert_eq!(tx_0.keyframes[0].time, 0.0);
+        assert_eq!(tx_0.keyframes[1].time, 7.0);
+
+        // Segment 1: translate_x scoped from 7.0 to 14.0.
+        let tx_1 = built[1]
+            .animations
+            .iter()
+            .find(|a| a.property == ss_core::AnimatableProperty::TranslateX)
+            .unwrap();
+        assert_eq!(tx_1.keyframes[0].time, 7.0);
+        assert_eq!(tx_1.keyframes[1].time, 14.0);
     }
 
     #[test]
