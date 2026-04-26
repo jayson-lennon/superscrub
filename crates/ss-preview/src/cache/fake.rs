@@ -149,7 +149,7 @@ mod tests {
             background: [0, 0, 0, 255],
             audio_clips: vec![],
             encoding: EncodingConfig::default(),
-            clips: vec![],
+            items: vec![],
         }
     }
 

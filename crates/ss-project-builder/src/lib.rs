@@ -15,11 +15,13 @@
 pub mod anim_builder;
 pub mod audio_clip_builder;
 pub mod clip_builder;
+pub mod group_builder;
 pub mod project_builder;
 pub mod validation;
 
 pub use anim_builder::AnimBuilder;
 pub use audio_clip_builder::{AudioClipBuilder, AudioClipParams};
 pub use clip_builder::{ClipBuilder, ClipParams};
+pub use group_builder::{GroupBuilder, GroupParams};
 pub use project_builder::{ProjectBuilder, ProjectParams};
 pub use validation::{BuilderError, BuilderErrors};

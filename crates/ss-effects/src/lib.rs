@@ -17,4 +17,4 @@ pub mod ken_burns;
 pub mod opacity;
 
 pub use ken_burns::{KenBurnsBuilder, KenBurnsDirection, KenBurnsParams, KenBurnsSegmentParams};
-pub use opacity::opacity;
+pub use opacity::{group_opacity, opacity};

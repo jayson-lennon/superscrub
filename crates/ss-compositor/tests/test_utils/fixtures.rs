@@ -8,8 +8,8 @@ use ss_core::project::{EncodingConfig, Project};
 /// The project file path used in tests. Images resolve relative to this.
 pub const PROJECT_FILE: &str = "/test/project.json";
 
-/// Build a project with the given clips and default settings.
-pub fn build_project(clips: Vec<ss_core::clip::ClipDef>) -> Project {
+/// Build a project with the given items and default settings.
+pub fn build_project(items: Vec<ss_core::item::ItemDef>) -> Project {
     Project {
         resolution: [100, 100],
         fps: 30,
@@ -18,7 +18,7 @@ pub fn build_project(clips: Vec<ss_core::clip::ClipDef>) -> Project {
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips,
+        items,
     }
 }
 

@@ -9,7 +9,7 @@
 //! color palette and display volume percentage when below 100%.
 
 use egui::{Color32, Pos2, Rect, RichText, Sense, Vec2};
-use ss_core::clip::ClipDef;
+use ss_core::item::ItemDef;
 use ss_core::project::{AudioClipDef, Project};
 
 /// Computed layout for the timeline (testable without egui).
@@ -176,7 +176,12 @@ impl TimelinePanel {
             let available_width = ui.available_width();
 
             // Compute track counts.
-            let max_video_track = project.clips.iter().map(|c| c.track).max().unwrap_or(0);
+            let max_video_track = project
+                .items
+                .iter()
+                .map(|item| item.track)
+                .max()
+                .unwrap_or(0);
             let num_video_tracks = (max_video_track + 1) as usize;
 
             let max_audio_track = project
@@ -227,13 +232,13 @@ impl TimelinePanel {
                 TIME_BAR_HEIGHT,
             );
 
-            // Draw video track lanes with clip blocks.
-            for clip in &project.clips {
+            // Draw video track lanes with item blocks.
+            for item in &project.items {
                 let track_y =
-                    origin.y + layout.video_origin_y + clip.track as f32 * (TRACK_HEIGHT + GAP);
-                self.draw_clip_block(
+                    origin.y + layout.video_origin_y + item.track as f32 * (TRACK_HEIGHT + GAP);
+                self.draw_item_block(
                     &painter,
-                    clip,
+                    item,
                     origin.x,
                     track_y,
                     available_width,
@@ -429,22 +434,22 @@ impl TimelinePanel {
 
     /// Draw a single video clip block as a colored rectangle.
     #[allow(clippy::too_many_arguments)]
-    fn draw_clip_block(
+    fn draw_item_block(
         &self,
         painter: &egui::Painter,
-        clip: &ClipDef,
+        item: &ItemDef,
         origin_x: f32,
         track_y: f32,
         total_width: f32,
         track_height: f32,
         duration: f64,
     ) {
-        let start_frac = (clip.start_time / duration) as f32;
-        let end_frac = (clip.end_time / duration) as f32;
+        let start_frac = (item.start_time / duration) as f32;
+        let end_frac = (item.end_time / duration) as f32;
         let x = origin_x + start_frac * total_width;
         let w = (end_frac - start_frac) * total_width;
 
-        let color = self.video_colors[clip.track as usize % self.video_colors.len()];
+        let color = self.video_colors[item.track as usize % self.video_colors.len()];
         let rect = Rect::from_min_size(Pos2::new(x, track_y), Vec2::new(w.max(2.0), track_height));
         painter.rect_filled(rect, 3.0, color);
 
@@ -453,7 +458,7 @@ impl TimelinePanel {
             painter.text(
                 rect.left_top() + Vec2::new(4.0, 2.0),
                 egui::Align2::LEFT_TOP,
-                &clip.id,
+                &item.id,
                 egui::FontId::proportional(11.0),
                 Color32::WHITE,
             );
@@ -523,7 +528,7 @@ mod tests {
 
     /// Helper to create a project with the given video and audio clips.
     fn build_project(
-        clips: Vec<ClipDef>,
+        items: Vec<ItemDef>,
         audio_clips: Vec<AudioClipDef>,
     ) -> ss_core::project::Project {
         ss_core::project::Project {
@@ -534,22 +539,22 @@ mod tests {
             background: [0x2c, 0x2e, 0x34, 0xff],
             audio_clips,
             encoding: ss_core::project::EncodingConfig::default(),
-            clips,
+            items,
         }
     }
 
     /// Helper to create a minimal video clip on the given track.
-    fn video_clip(id: &str, track: u32) -> ClipDef {
-        ClipDef {
+    fn video_item(id: &str, track: u32) -> ItemDef {
+        ItemDef {
             id: id.to_string(),
-            clip_type: ss_core::clip::ClipType::Image {
+            content: ss_core::item::ItemContent::Image {
                 path: format!("{id}.png"),
             },
             track,
             start_time: 0.0,
             end_time: 10.0,
             z_index: 0,
-            sizing: ss_core::clip::Sizing::default(),
+            sizing: ss_core::item::Sizing::default(),
             pivot: [0.5, 0.5],
             animations: vec![],
         }
@@ -682,7 +687,7 @@ mod tests {
 
     #[rstest::rstest]
     #[case::with_audio_clips(
-        vec![video_clip("bg", 0)],
+        vec![video_item("bg", 0)],
         vec![audio_clip("music", 0, 1.0), audio_clip("sfx", 1, 0.5)],
         2.5,
     )]
@@ -692,17 +697,17 @@ mod tests {
         0.0,
     )]
     #[case::empty_audio_clips(
-        vec![video_clip("bg", 0)],
+        vec![video_item("bg", 0)],
         vec![],
         5.0,
     )]
     fn show_does_not_panic(
-        #[case] clips: Vec<ClipDef>,
+        #[case] items: Vec<ItemDef>,
         #[case] audio_clips: Vec<AudioClipDef>,
         #[case] current_time: f64,
     ) {
-        // Given a project with the specified clips.
-        let project = build_project(clips, audio_clips);
+        // Given a project with the specified items.
+        let project = build_project(items, audio_clips);
         let mut panel = TimelinePanel::new();
 
         // When showing the timeline.
@@ -785,7 +790,7 @@ mod tests {
     #[test]
     fn show_with_cached_frames_does_not_panic() {
         // Given a project and some cached frame data.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
         let cached = vec![true, false, true, false, true];
 
@@ -803,7 +808,7 @@ mod tests {
     #[test]
     fn show_with_empty_cached_frames_does_not_panic() {
         // Given a project with no cached frames.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
 
         // When showing the timeline with empty cached frames.
@@ -820,7 +825,7 @@ mod tests {
     #[test]
     fn show_with_all_cached_frames_does_not_panic() {
         // Given a project where all 300 frames are cached.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
         let cached = vec![true; 300];
 
@@ -899,7 +904,7 @@ mod tests {
     #[test]
     fn show_returns_none_when_no_pointer_interaction() {
         // Given a project and timeline panel with a setup frame.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
         let ctx = egui::Context::default();
         setup_frame(&ctx, &mut panel, &project);
@@ -914,7 +919,7 @@ mod tests {
     #[test]
     fn show_returns_scrub_while_pointer_is_held_down() {
         // Given a project and timeline panel with a setup frame.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
         let ctx = egui::Context::default();
         setup_frame(&ctx, &mut panel, &project);
@@ -936,7 +941,7 @@ mod tests {
     #[test]
     fn show_returns_none_after_scrub_releases() {
         // Given a panel with a setup frame.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
         let ctx = egui::Context::default();
         setup_frame(&ctx, &mut panel, &project);
@@ -962,7 +967,7 @@ mod tests {
     #[test]
     fn show_returns_click_on_press_and_release_without_move() {
         // Given a project and timeline panel with a setup frame.
-        let project = build_project(vec![video_clip("bg", 0)], vec![]);
+        let project = build_project(vec![video_item("bg", 0)], vec![]);
         let mut panel = TimelinePanel::new();
         let ctx = egui::Context::default();
         setup_frame(&ctx, &mut panel, &project);

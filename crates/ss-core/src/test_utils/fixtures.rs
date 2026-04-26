@@ -1,14 +1,14 @@
 //! Test fixture builders.
 
 use crate::animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
-use crate::clip::{ClipDef, ClipType, Sizing};
+use crate::item::{ItemContent, ItemDef, Sizing};
 use crate::project::{AudioClipDef, Project};
 
-/// Build a minimal image clip with sensible defaults.
-pub fn build_image_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> ClipDef {
-    ClipDef {
+/// Build a minimal image item with sensible defaults.
+pub fn build_image_item(id: &str, path: &str, start_time: f64, end_time: f64) -> ItemDef {
+    ItemDef {
         id: id.to_string(),
-        clip_type: ClipType::Image {
+        content: ItemContent::Image {
             path: path.to_string(),
         },
         track: 0,
@@ -21,34 +21,53 @@ pub fn build_image_clip(id: &str, path: &str, start_time: f64, end_time: f64) ->
     }
 }
 
-/// Build an image clip with a single animation track.
-pub fn build_clip_with_animation(
+/// Build an image item with a single animation track.
+pub fn build_item_with_animation(
     id: &str,
     property: AnimatableProperty,
     keyframes: Vec<Keyframe>,
-) -> ClipDef {
-    let mut clip = build_image_clip(id, "test.png", 0.0, 10.0);
-    clip.animations = vec![AnimationTrack {
+) -> ItemDef {
+    let mut item = build_image_item(id, "test.png", 0.0, 10.0);
+    item.animations = vec![AnimationTrack {
         property,
         keyframes,
     }];
-    clip
+    item
 }
 
-/// Build an image clip with multiple animation tracks.
-pub fn build_clip_with_animations(
+/// Build an image item with multiple animation tracks.
+pub fn build_item_with_animations(
     id: &str,
     animations: Vec<(AnimatableProperty, Vec<Keyframe>)>,
-) -> ClipDef {
-    let mut clip = build_image_clip(id, "test.png", 0.0, 10.0);
-    clip.animations = animations
+) -> ItemDef {
+    let mut item = build_image_item(id, "test.png", 0.0, 10.0);
+    item.animations = animations
         .into_iter()
         .map(|(property, keyframes)| AnimationTrack {
             property,
             keyframes,
         })
         .collect();
-    clip
+    item
+}
+
+/// Build a group item with children and optional animations.
+pub fn build_group_item(
+    id: &str,
+    children: Vec<ItemDef>,
+    animations: Vec<AnimationTrack>,
+) -> ItemDef {
+    ItemDef {
+        id: id.to_string(),
+        content: ItemContent::Group { children },
+        track: 0,
+        start_time: 0.0,
+        end_time: 10.0,
+        z_index: 0,
+        sizing: Sizing::default(),
+        pivot: [0.5, 0.5],
+        animations,
+    }
 }
 
 /// Build a minimal audio clip with sensible defaults.
@@ -63,8 +82,8 @@ pub fn build_audio_clip(id: &str, path: &str, start_time: f64, end_time: f64) ->
     }
 }
 
-/// Build a minimal project with the given clips.
-pub fn build_project(clips: Vec<ClipDef>) -> Project {
+/// Build a minimal project with the given items.
+pub fn build_project(items: Vec<ItemDef>) -> Project {
     Project {
         resolution: [1920, 1080],
         fps: 60,
@@ -73,7 +92,7 @@ pub fn build_project(clips: Vec<ClipDef>) -> Project {
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio_clips: vec![build_audio_clip("audio", "assets/song.mp3", 0.0, 30.0)],
         encoding: crate::project::EncodingConfig::default(),
-        clips,
+        items,
     }
 }
 

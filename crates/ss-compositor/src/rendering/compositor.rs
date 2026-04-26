@@ -11,8 +11,8 @@ use image::{Rgba, RgbaImage};
 use imageproc::geometric_transformations::{Interpolation, Projection, warp_into};
 use tracing::debug;
 
-use ss_core::clip::ClipType;
-use ss_core::interpolation::resolve_clip;
+use ss_core::interpolation::resolve_items;
+use ss_core::item::ItemContent;
 use ss_core::path_resolve::resolve_path;
 use ss_core::project::Project;
 
@@ -57,24 +57,18 @@ impl FrameRenderer for CompositorRenderer {
         // 2. Fill the canvas_rect area with the project background color.
         fill_background(&mut canvas, viewport, &project.background);
 
-        // 3. Find active clips sorted by z_index.
-        let mut active: Vec<_> = project
-            .clips
-            .iter()
-            .filter(|c| time >= c.start_time && time < c.end_time)
-            .collect();
-        active.sort_by_key(|c| c.z_index);
+        // 3. Resolve active items (filtering, sorting, group flattening).
+        let resolved = resolve_items(&project.items, time).change_context(CompositorError)?;
 
-        debug!("rendering frame: time={}, clips={}", time, active.len());
+        debug!("rendering frame: time={}, items={}", time, resolved.len());
 
-        // 4. For each clip: resolve transforms, warp, composite.
-        for clip_def in active {
-            render_clip(
+        // 4. For each resolved item: warp, composite.
+        for resolved_item in &resolved {
+            render_resolved_item(
                 &mut canvas,
                 &self.image_provider,
-                clip_def,
+                resolved_item,
                 project_file,
-                time,
                 viewport,
                 &project.resolution,
             )?;
@@ -97,37 +91,33 @@ fn fill_background(canvas: &mut RgbaImage, viewport: &Viewport, bg: &[u8; 4]) {
     }
 }
 
-/// Render a single clip onto the canvas.
-fn render_clip(
+/// Render a single resolved item onto the canvas.
+fn render_resolved_item(
     canvas: &mut RgbaImage,
     image_provider: &Arc<dyn ImageProvider>,
-    clip_def: &ss_core::clip::ClipDef,
+    resolved: &ss_core::transform::ResolvedItem,
     project_file: &Path,
-    time: f64,
     viewport: &Viewport,
     project_resolution: &[u32; 2],
 ) -> Result<(), Report<CompositorError>> {
-    // Resolve the clip's animated state.
-    let resolved = resolve_clip(clip_def, time)
-        .change_context(CompositorError)
-        .attach(clip_def.id.clone())?;
-
     // Resolve the image path.
-    let image_path = match &clip_def.clip_type {
-        ClipType::Image { path } => resolve_path(project_file, path)
+    let image_path = match &resolved.item.content {
+        ItemContent::Image { path } => resolve_path(project_file, path)
             .change_context(CompositorError)
-            .attach(clip_def.id.clone())?,
+            .attach(resolved.item.id.clone())?,
+        // Groups are flattened by `resolve_items`; they never appear here.
+        ItemContent::Group { .. } => unreachable!("groups should be flattened by resolve_items"),
     };
 
     // Load the source image.
     let source_image = image_provider
         .get(&image_path)
         .change_context(CompositorError)
-        .attach(clip_def.id.clone())?;
+        .attach(resolved.item.id.clone())?;
 
     // Compute base placement from sizing (in project-space).
     let placement = compute_placement(
-        &clip_def.sizing,
+        &resolved.item.sizing,
         (source_image.width(), source_image.height()),
         (project_resolution[0], project_resolution[1]),
     );
@@ -146,7 +136,7 @@ fn render_clip(
     let clip_layer = warp_clip(
         &source_image,
         &placement,
-        &resolved,
+        resolved,
         viewport,
         viewport_scale,
     );
@@ -168,7 +158,7 @@ fn render_clip(
 fn warp_clip(
     source: &RgbaImage,
     placement: &crate::sizing::PlacedRect,
-    resolved: &ss_core::transform::ResolvedClip,
+    resolved: &ss_core::transform::ResolvedItem,
     viewport: &Viewport,
     viewport_scale: (f32, f32),
 ) -> RgbaImage {
@@ -186,8 +176,8 @@ fn warp_clip(
     };
 
     // Pivot in canvas space (before animation transforms).
-    let pivot_x = placement.x + placement.w * resolved.clip.pivot[0];
-    let pivot_y = placement.y + placement.h * resolved.clip.pivot[1];
+    let pivot_x = placement.x + placement.w * resolved.item.pivot[0];
+    let pivot_y = placement.y + placement.h * resolved.item.pivot[1];
 
     // Build the forward transform: source → destination.
     // Each and_then applies the previous transform first, then the new one.

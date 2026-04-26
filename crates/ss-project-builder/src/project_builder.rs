@@ -35,7 +35,8 @@ use std::path::Path;
 
 use ss_core::{EncodingConfig, Project};
 
-use crate::{AudioClipBuilder, BuilderError, BuilderErrors, ClipBuilder};
+use crate::{AudioClipBuilder, BuilderError, BuilderErrors, ClipBuilder, GroupBuilder};
+use ss_core::ItemDef;
 
 /// Parameters managed by `bon`'s typestate builder.
 ///
@@ -72,6 +73,8 @@ pub struct ProjectBuilder {
     params: ProjectParams,
     clip_builders: Vec<ClipBuilder>,
     audio_clip_builders: Vec<AudioClipBuilder>,
+    group_builders: Vec<GroupBuilder>,
+    items: Vec<ItemDef>,
 }
 
 impl ProjectBuilder {
@@ -81,6 +84,8 @@ impl ProjectBuilder {
             params,
             clip_builders: vec![],
             audio_clip_builders: vec![],
+            group_builders: vec![],
+            items: vec![],
         }
     }
 
@@ -129,6 +134,41 @@ impl ProjectBuilder {
         self
     }
 
+    /// Appends a [`GroupBuilder`] to the project's group list.
+    #[must_use]
+    pub fn add_group(mut self, group: GroupBuilder) -> Self {
+        self.group_builders.push(group);
+        self
+    }
+
+    /// Appends a pre-built [`ItemDef`] to the project's item list.
+    ///
+    /// Use this when you already have a built item (e.g., from
+    /// [`ss_effects::group_opacity`]) and don't need the builder pipeline.
+    /// The item is validated against the project duration during
+    /// [`build`](ProjectBuilder::build).
+    #[must_use]
+    pub fn add_item(mut self, item: ItemDef) -> Self {
+        self.items.push(item);
+        self
+    }
+
+    /// Applies a time offset to each group, then appends them to the project.
+    ///
+    /// This is the group equivalent of [`add_clips_at`](ProjectBuilder::add_clips_at).
+    /// Each group's start/end times, animation keyframes, and children's times
+    /// are all shifted by the given offset.
+    #[must_use]
+    pub fn add_groups_at(
+        mut self,
+        offset: f64,
+        groups: impl IntoIterator<Item = GroupBuilder>,
+    ) -> Self {
+        self.group_builders
+            .extend(groups.into_iter().map(|g| g.with_offset(offset)));
+        self
+    }
+
     /// Consumes the builder, validates, and returns a [`Project`].
     ///
     /// # Validation
@@ -160,13 +200,24 @@ impl ProjectBuilder {
         }
 
         // Build all clips, collecting errors.
-        let mut clips = Vec::with_capacity(self.clip_builders.len());
+        let mut items = Vec::with_capacity(self.clip_builders.len() + self.group_builders.len());
         for clip_builder in self.clip_builders {
             match clip_builder.build() {
-                Ok(clip) => clips.push(clip),
+                Ok(clip) => items.push(clip),
                 Err(e) => errors.merge(e),
             }
         }
+
+        // Build all groups, collecting errors.
+        for group_builder in self.group_builders {
+            match group_builder.build() {
+                Ok(group) => items.push(group),
+                Err(e) => errors.merge(e),
+            }
+        }
+
+        // Extend with pre-built items.
+        items.extend(self.items);
 
         // Build all audio clips, collecting errors.
         let mut audio_clips = Vec::with_capacity(self.audio_clip_builders.len());
@@ -179,14 +230,14 @@ impl ProjectBuilder {
 
         // Validate time ranges against project duration (only if duration is valid).
         if self.params.duration > 0.0 {
-            for clip in &clips {
-                if clip.end_time > self.params.duration {
+            for item in &items {
+                if item.end_time > self.params.duration {
                     errors.push(
                         BuilderError::new(format!(
-                            "clip end_time ({}) exceeds project duration ({})",
-                            clip.end_time, self.params.duration
+                            "item end_time ({}) exceeds project duration ({})",
+                            item.end_time, self.params.duration
                         ))
-                        .in_context(format!("clip \"{}\"", clip.id)),
+                        .in_context(format!("item \"{}\"", item.id)),
                     );
                 }
             }
@@ -213,7 +264,7 @@ impl ProjectBuilder {
             background: self.params.background,
             audio_clips,
             encoding: self.params.encoding,
-            clips,
+            items,
         })
     }
 
@@ -289,7 +340,7 @@ mod tests {
             project.encoding.pixel_format,
             EncodingConfig::default().pixel_format
         );
-        assert!(project.clips.is_empty());
+        assert!(project.items.is_empty());
         assert!(project.audio_clips.is_empty());
     }
 
@@ -348,8 +399,8 @@ mod tests {
             .unwrap();
 
         // Then both are present in the output.
-        assert_eq!(project.clips.len(), 1);
-        assert_eq!(project.clips[0].id, "bg");
+        assert_eq!(project.items.len(), 1);
+        assert_eq!(project.items[0].id, "bg");
         assert_eq!(project.audio_clips.len(), 1);
         assert_eq!(project.audio_clips[0].id, "music");
     }
@@ -486,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn build_project_clip_exceeds_duration() {
+    fn build_project_item_exceeds_duration() {
         // Given a ProjectBuilder with a clip whose end_time > duration.
         let params = minimal_params();
         let clip = ClipBuilder::new(
@@ -505,8 +556,8 @@ mod tests {
         let error = errors.iter().next().unwrap();
         let msg = error.to_string();
         assert!(
-            msg.contains("clip \"bg\""),
-            "error should mention clip: {msg}"
+            msg.contains("item \"bg\""),
+            "error should mention item: {msg}"
         );
         assert!(
             msg.contains("exceeds project duration"),
@@ -655,10 +706,10 @@ mod tests {
         let back: ss_core::Project = serde_json::from_str(&json).expect("should parse back");
 
         // Then the clip and animation survive the round trip.
-        assert_eq!(back.clips.len(), 1);
-        assert_eq!(back.clips[0].id, "bg");
-        assert_eq!(back.clips[0].animations.len(), 1);
-        assert_eq!(back.clips[0].animations[0].keyframes.len(), 2);
+        assert_eq!(back.items.len(), 1);
+        assert_eq!(back.items[0].id, "bg");
+        assert_eq!(back.items[0].animations.len(), 1);
+        assert_eq!(back.items[0].animations[0].keyframes.len(), 2);
     }
 
     // ============================================================
@@ -698,10 +749,10 @@ mod tests {
             .unwrap();
 
         // Then all three clips are present in order.
-        assert_eq!(project.clips.len(), 3);
-        assert_eq!(project.clips[0].id, "a");
-        assert_eq!(project.clips[1].id, "b");
-        assert_eq!(project.clips[2].id, "c");
+        assert_eq!(project.items.len(), 3);
+        assert_eq!(project.items[0].id, "a");
+        assert_eq!(project.items[1].id, "b");
+        assert_eq!(project.items[2].id, "c");
     }
 
     #[test]
@@ -716,7 +767,7 @@ mod tests {
             .unwrap();
 
         // Then the project has no clips.
-        assert!(project.clips.is_empty());
+        assert!(project.items.is_empty());
     }
 
     #[test]
@@ -746,9 +797,9 @@ mod tests {
             .unwrap();
 
         // Then order is preserved: batch first, then single.
-        assert_eq!(project.clips.len(), 2);
-        assert_eq!(project.clips[0].id, "batch");
-        assert_eq!(project.clips[1].id, "single");
+        assert_eq!(project.items.len(), 2);
+        assert_eq!(project.items[0].id, "batch");
+        assert_eq!(project.items[1].id, "single");
     }
 
     #[test]
@@ -779,11 +830,11 @@ mod tests {
             .unwrap();
 
         // Then both clips are shifted to t=5..15.
-        assert_eq!(project.clips.len(), 2);
-        assert_eq!(project.clips[0].start_time, 5.0);
-        assert_eq!(project.clips[0].end_time, 15.0);
-        assert_eq!(project.clips[1].start_time, 5.0);
-        assert_eq!(project.clips[1].end_time, 15.0);
+        assert_eq!(project.items.len(), 2);
+        assert_eq!(project.items[0].start_time, 5.0);
+        assert_eq!(project.items[0].end_time, 15.0);
+        assert_eq!(project.items[1].start_time, 5.0);
+        assert_eq!(project.items[1].end_time, 15.0);
     }
 
     #[test]
@@ -820,8 +871,8 @@ mod tests {
             .unwrap();
 
         // Then start/end times are identical.
-        assert_eq!(p1.clips[0].start_time, p2.clips[0].start_time);
-        assert_eq!(p1.clips[0].end_time, p2.clips[0].end_time);
+        assert_eq!(p1.items[0].start_time, p2.items[0].start_time);
+        assert_eq!(p1.items[0].end_time, p2.items[0].end_time);
     }
 
     #[test]
@@ -844,9 +895,9 @@ mod tests {
             .unwrap();
 
         // Then the keyframe time is shifted to 10.0.
-        assert_eq!(project.clips[0].start_time, 7.0);
-        assert_eq!(project.clips[0].end_time, 17.0);
-        assert_eq!(project.clips[0].animations[0].keyframes[0].time, 10.0);
+        assert_eq!(project.items[0].start_time, 7.0);
+        assert_eq!(project.items[0].end_time, 17.0);
+        assert_eq!(project.items[0].animations[0].keyframes[0].time, 10.0);
     }
 
     #[test]
@@ -861,6 +912,248 @@ mod tests {
             .unwrap();
 
         // Then the project has no clips.
-        assert!(project.clips.is_empty());
+        assert!(project.items.is_empty());
+    }
+
+    // ============================================================
+    // Group methods
+    // ============================================================
+
+    /// Creates a minimal group ItemDef for test reuse.
+    fn image_item(id: &str, start: f64, end: f64) -> ss_core::ItemDef {
+        ss_core::ItemDef {
+            id: id.to_string(),
+            content: ss_core::ItemContent::Image {
+                path: "test.png".to_string(),
+            },
+            track: 0,
+            start_time: start,
+            end_time: end,
+            z_index: 0,
+            sizing: ss_core::Sizing::Natural,
+            pivot: [0.5, 0.5],
+            animations: vec![],
+        }
+    }
+
+    #[test]
+    fn add_group_builds_group_into_project() {
+        // Given a project with a group.
+        let params = minimal_params();
+        let group_params = crate::GroupParams::builder()
+            .id("grp")
+            .children(vec![image_item("c1", 0.0, 10.0)])
+            .end_time(10.0)
+            .build();
+        let group = crate::GroupBuilder::new(group_params);
+
+        // When building the project.
+        let project = ProjectBuilder::new(params)
+            .add_group(group)
+            .build()
+            .unwrap();
+
+        // Then the group item is present.
+        assert_eq!(project.items.len(), 1);
+        assert_eq!(project.items[0].id, "grp");
+        assert!(matches!(
+            project.items[0].content,
+            ss_core::ItemContent::Group { .. }
+        ));
+    }
+
+    #[test]
+    fn add_groups_at_shifts_groups_by_offset() {
+        // Given two groups at t=0..10.
+        let params = minimal_params();
+        let grp1_params = crate::GroupParams::builder()
+            .id("g1")
+            .children(vec![image_item("c1", 0.0, 5.0)])
+            .start_time(0.0)
+            .end_time(10.0)
+            .build();
+        let grp2_params = crate::GroupParams::builder()
+            .id("g2")
+            .children(vec![image_item("c2", 0.0, 8.0)])
+            .start_time(0.0)
+            .end_time(10.0)
+            .build();
+        let g1 = crate::GroupBuilder::new(grp1_params);
+        let g2 = crate::GroupBuilder::new(grp2_params);
+
+        // When adding at offset 5.0.
+        let project = ProjectBuilder::new(params)
+            .add_groups_at(5.0, [g1, g2])
+            .build()
+            .unwrap();
+
+        // Then both groups are shifted to t=5..15.
+        assert_eq!(project.items.len(), 2);
+        assert_eq!(project.items[0].start_time, 5.0);
+        assert_eq!(project.items[0].end_time, 15.0);
+        assert_eq!(project.items[1].start_time, 5.0);
+        assert_eq!(project.items[1].end_time, 15.0);
+    }
+
+    #[test]
+    fn mixed_clips_and_groups_in_project() {
+        // Given a project with both clips and groups.
+        let params = minimal_params();
+        let clip = ClipBuilder::new(
+            ClipParams::builder()
+                .id("clip")
+                .path("img.png")
+                .end_time(10.0)
+                .build(),
+        );
+        let group_params = crate::GroupParams::builder()
+            .id("grp")
+            .children(vec![image_item("c1", 0.0, 10.0)])
+            .end_time(10.0)
+            .build();
+        let group = crate::GroupBuilder::new(group_params);
+
+        // When building the project.
+        let project = ProjectBuilder::new(params)
+            .add_clip(clip)
+            .add_group(group)
+            .build()
+            .unwrap();
+
+        // Then both are present in order.
+        assert_eq!(project.items.len(), 2);
+        assert_eq!(project.items[0].id, "clip");
+        assert_eq!(project.items[1].id, "grp");
+    }
+
+    #[test]
+    fn group_exceeds_project_duration_produces_error() {
+        // Given a project with a group that exceeds duration.
+        let params = minimal_params();
+        let group_params = crate::GroupParams::builder()
+            .id("long-group")
+            .children(vec![image_item("c1", 0.0, 60.0)])
+            .end_time(60.0) // exceeds 30.0 duration
+            .build();
+        let group = crate::GroupBuilder::new(group_params);
+
+        // When building.
+        let result = ProjectBuilder::new(params).add_group(group).build();
+
+        // Then the error mentions the item exceeding duration.
+        let errors = result.expect_err("should fail with group exceeding duration");
+        let msg = errors.iter().next().unwrap().to_string();
+        assert!(
+            msg.contains("item \"long-group\""),
+            "error should mention item: {msg}"
+        );
+        assert!(
+            msg.contains("exceeds project duration"),
+            "error should describe duration issue: {msg}"
+        );
+    }
+
+    // ============================================================
+    // Pre-built item method
+    // ============================================================
+
+    #[test]
+    fn add_item_places_prebuilt_item_in_project() {
+        // Given a project with a pre-built image ItemDef.
+        let params = minimal_params();
+        let item = ss_core::ItemDef {
+            id: "prebuilt".to_string(),
+            content: ss_core::ItemContent::Image {
+                path: "img.png".to_string(),
+            },
+            track: 0,
+            start_time: 0.0,
+            end_time: 10.0,
+            z_index: 0,
+            sizing: ss_core::Sizing::Natural,
+            pivot: [0.5, 0.5],
+            animations: vec![],
+        };
+
+        // When building with add_item.
+        let project = ProjectBuilder::new(params).add_item(item).build().unwrap();
+
+        // Then the pre-built item appears in the project.
+        assert_eq!(project.items.len(), 1);
+        assert_eq!(project.items[0].id, "prebuilt");
+        assert_eq!(project.items[0].start_time, 0.0);
+        assert_eq!(project.items[0].end_time, 10.0);
+    }
+
+    #[test]
+    fn add_item_exceeding_project_duration_produces_error() {
+        // Given a project with a pre-built item whose end_time exceeds duration.
+        let params = minimal_params(); // duration = 30.0
+        let item = ss_core::ItemDef {
+            id: "too-long".to_string(),
+            content: ss_core::ItemContent::Image {
+                path: "img.png".to_string(),
+            },
+            track: 0,
+            start_time: 0.0,
+            end_time: 60.0, // exceeds 30.0
+            z_index: 0,
+            sizing: ss_core::Sizing::Natural,
+            pivot: [0.5, 0.5],
+            animations: vec![],
+        };
+
+        // When building.
+        let result = ProjectBuilder::new(params).add_item(item).build();
+
+        // Then the error mentions the item exceeding duration.
+        let errors = result.expect_err("should fail with item exceeding duration");
+        let msg = errors.iter().next().unwrap().to_string();
+        assert!(
+            msg.contains("item \"too-long\""),
+            "error should mention item: {msg}"
+        );
+        assert!(
+            msg.contains("exceeds project duration"),
+            "error should describe duration issue: {msg}"
+        );
+    }
+
+    #[test]
+    fn group_build_errors_collected_alongside_clip_errors() {
+        // Given a project with a bad clip and a bad group.
+        let params = minimal_params();
+        let bad_clip = ClipBuilder::new(
+            ClipParams::builder()
+                .id("bad-clip")
+                .path("img.png")
+                .start_time(10.0)
+                .end_time(5.0) // invalid
+                .build(),
+        );
+        let bad_group_params = crate::GroupParams::builder()
+            .id("bad-group")
+            .children(vec![]) // invalid
+            .end_time(5.0)
+            .build();
+        let bad_group = crate::GroupBuilder::new(bad_group_params);
+
+        // When building.
+        let result = ProjectBuilder::new(params)
+            .add_clip(bad_clip)
+            .add_group(bad_group)
+            .build();
+
+        // Then errors from both are collected.
+        let errors = result.expect_err("should fail with multiple errors");
+        let combined: String = errors.iter().map(|e| e.to_string()).collect();
+        assert!(
+            combined.contains("clip \"bad-clip\""),
+            "should mention clip: {combined}"
+        );
+        assert!(
+            combined.contains("group \"bad-group\""),
+            "should mention group: {combined}"
+        );
     }
 }

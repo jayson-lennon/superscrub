@@ -10,9 +10,9 @@ use std::sync::atomic::Ordering;
 use image::Rgba;
 use ss_compositor::{FakeImageProvider, FrameRenderer, ImageProvider, Viewport};
 use ss_core::animation::{AnimatableProperty, AnimationTrack};
-use ss_core::clip::Sizing;
+use ss_core::item::Sizing;
 use ss_core::project::{EncodingConfig, Project};
-use ss_core::test_utils::fixtures::{build_image_clip, kf};
+use ss_core::test_utils::fixtures::{build_group_item, build_image_item, kf};
 use test_utils::fixtures::{
     PROJECT_FILE, build_project, create_renderer, render_frame, render_frame_at_resolution,
 };
@@ -21,8 +21,8 @@ const RED: [u8; 4] = [255, 0, 0, 255];
 const GREEN: [u8; 4] = [0, 255, 0, 255];
 const DEFAULT_BG: [u8; 4] = [0x2c, 0x2e, 0x34, 0xff];
 
-fn make_project_with_clips(clips: Vec<ss_core::clip::ClipDef>) -> ss_core::project::Project {
-    build_project(clips)
+fn make_project_with_items(items: Vec<ss_core::item::ItemDef>) -> ss_core::project::Project {
+    build_project(items)
 }
 
 /// Resolved path for "test.png" relative to PROJECT_FILE.
@@ -42,8 +42,8 @@ fn pixel_color(frame: &image::RgbaImage, x: u32, y: u32) -> [u8; 4] {
 #[test]
 fn single_clip_renders_image_color() {
     // Given a project with a single red clip.
-    let clip = build_image_clip("test", "test.png", 0.0, 10.0);
-    let project = make_project_with_clips(vec![clip]);
+    let clip = build_image_item("test", "test.png", 0.0, 10.0);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering at t=5.
@@ -57,8 +57,8 @@ fn single_clip_renders_image_color() {
 #[test]
 fn inactive_clip_does_not_appear() {
     // Given a clip that is not active at t=15.
-    let clip = build_image_clip("test", "test.png", 0.0, 10.0);
-    let project = make_project_with_clips(vec![clip]);
+    let clip = build_image_item("test", "test.png", 0.0, 10.0);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering at t=15 (after clip ends).
@@ -72,12 +72,12 @@ fn inactive_clip_does_not_appear() {
 #[test]
 fn opacity_half_blends_with_background() {
     // Given a clip with 50% opacity.
-    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
     clip.animations = vec![AnimationTrack {
         property: AnimatableProperty::Opacity,
         keyframes: vec![kf(0.0, 0.5), kf(10.0, 0.5)],
     }];
-    let project = make_project_with_clips(vec![clip]);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering.
@@ -95,12 +95,12 @@ fn opacity_half_blends_with_background() {
 #[test]
 fn higher_z_index_renders_on_top() {
     // Given two clips: red at z=0, green at z=1.
-    let mut red_clip = build_image_clip("red", "test.png", 0.0, 10.0);
+    let mut red_clip = build_image_item("red", "test.png", 0.0, 10.0);
     red_clip.z_index = 0;
-    let mut green_clip = build_image_clip("green", "green.png", 0.0, 10.0);
+    let mut green_clip = build_image_item("green", "green.png", 0.0, 10.0);
     green_clip.z_index = 1;
 
-    let project = make_project_with_clips(vec![red_clip, green_clip]);
+    let project = make_project_with_items(vec![red_clip, green_clip]);
 
     let mut provider = FakeImageProvider::new();
     provider.insert_solid(RESOLVED_TEST, 100, 100, RED);
@@ -118,7 +118,7 @@ fn higher_z_index_renders_on_top() {
 #[test]
 fn background_color_is_default_when_not_specified() {
     // Given a project with default background and no active clips.
-    let project = make_project_with_clips(vec![]);
+    let project = make_project_with_items(vec![]);
     let provider = Arc::new(FakeImageProvider::new());
 
     // When rendering.
@@ -132,7 +132,7 @@ fn background_color_is_default_when_not_specified() {
 #[test]
 fn explicit_background_color_applies() {
     // Given a project with a custom background color.
-    let mut project = make_project_with_clips(vec![]);
+    let mut project = make_project_with_items(vec![]);
     project.background = [0xff, 0x00, 0xff, 0xff]; // magenta
     let provider = Arc::new(FakeImageProvider::new());
 
@@ -147,8 +147,8 @@ fn explicit_background_color_applies() {
 #[test]
 fn camera_pan_shifts_scene() {
     // Given a project with a red clip and a viewport with camera pan.
-    let clip = build_image_clip("test", "test.png", 0.0, 10.0);
-    let project = make_project_with_clips(vec![clip]);
+    let clip = build_image_item("test", "test.png", 0.0, 10.0);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering with a camera pan of (50, 0).
@@ -173,9 +173,9 @@ fn camera_pan_shifts_scene() {
 #[test]
 fn image_provider_called_per_clip() {
     // Given a project with two clips using the same image path.
-    let clip1 = build_image_clip("clip1", "test.png", 0.0, 10.0);
-    let clip2 = build_image_clip("clip2", "test.png", 0.0, 10.0);
-    let project = make_project_with_clips(vec![clip1, clip2]);
+    let clip1 = build_image_item("clip1", "test.png", 0.0, 10.0);
+    let clip2 = build_image_item("clip2", "test.png", 0.0, 10.0);
+    let project = make_project_with_items(vec![clip1, clip2]);
 
     let mut provider = FakeImageProvider::new();
     provider.insert_solid(RESOLVED_TEST, 100, 100, RED);
@@ -211,12 +211,12 @@ fn filesystem_provider_caches_second_request() {
 #[test]
 fn translate_animation_shifts_clip() {
     // Given a clip with a translate_x animation of 50px.
-    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
     clip.animations = vec![AnimationTrack {
         property: AnimatableProperty::TranslateX,
         keyframes: vec![kf(0.0, 50.0), kf(10.0, 50.0)],
     }];
-    let project = make_project_with_clips(vec![clip]);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering.
@@ -233,7 +233,7 @@ fn translate_animation_shifts_clip() {
 #[test]
 fn scale_animation_enlarges_clip() {
     // Given a small clip with a scale animation of 2.0.
-    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
     clip.sizing = Sizing::Explicit {
         width: 50,
         height: 50,
@@ -248,7 +248,7 @@ fn scale_animation_enlarges_clip() {
             keyframes: vec![kf(0.0, 2.0), kf(10.0, 2.0)],
         },
     ];
-    let project = make_project_with_clips(vec![clip]);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering.
@@ -273,8 +273,8 @@ fn renderer_name_is_compositor() {
 #[test]
 fn clip_at_exact_start_time_is_active() {
     // Given a clip starting at t=5.
-    let clip = build_image_clip("test", "test.png", 5.0, 10.0);
-    let project = make_project_with_clips(vec![clip]);
+    let clip = build_image_item("test", "test.png", 5.0, 10.0);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering at t=5 (exact start).
@@ -288,7 +288,7 @@ fn clip_at_exact_start_time_is_active() {
 #[test]
 fn half_resolution_renders_entire_frame() {
     // Given a 200×200 project with a single red clip filling the canvas.
-    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
     clip.sizing = Sizing::Explicit {
         width: 200,
         height: 200,
@@ -301,7 +301,7 @@ fn half_resolution_renders_entire_frame() {
         background: DEFAULT_BG,
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips: vec![clip],
+        items: vec![clip],
     };
     let mut provider = FakeImageProvider::new();
     provider.insert_solid(RESOLVED_TEST, 200, 200, RED);
@@ -321,7 +321,7 @@ fn half_resolution_renders_entire_frame() {
 #[test]
 fn quarter_resolution_renders_entire_frame() {
     // Given a 200×200 project with a single red clip filling the canvas.
-    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
     clip.sizing = Sizing::Explicit {
         width: 200,
         height: 200,
@@ -334,7 +334,7 @@ fn quarter_resolution_renders_entire_frame() {
         background: DEFAULT_BG,
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips: vec![clip],
+        items: vec![clip],
     };
     let mut provider = FakeImageProvider::new();
     provider.insert_solid(RESOLVED_TEST, 200, 200, RED);
@@ -354,7 +354,7 @@ fn quarter_resolution_renders_entire_frame() {
 #[test]
 fn half_resolution_with_translate_animation_produces_correct_position() {
     // Given a 200×200 project with a 100×100 red clip translated to x=100.
-    let mut clip = build_image_clip("test", "test.png", 0.0, 10.0);
+    let mut clip = build_image_item("test", "test.png", 0.0, 10.0);
     clip.sizing = Sizing::Explicit {
         width: 100,
         height: 100,
@@ -371,7 +371,7 @@ fn half_resolution_with_translate_animation_produces_correct_position() {
         background: DEFAULT_BG,
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips: vec![clip],
+        items: vec![clip],
     };
     let mut provider = FakeImageProvider::new();
     provider.insert_solid(RESOLVED_TEST, 100, 100, RED);
@@ -398,8 +398,8 @@ fn half_resolution_with_translate_animation_produces_correct_position() {
 #[test]
 fn clip_at_exact_end_time_is_inactive() {
     // Given a clip ending at t=10.
-    let clip = build_image_clip("test", "test.png", 0.0, 10.0);
-    let project = make_project_with_clips(vec![clip]);
+    let clip = build_image_item("test", "test.png", 0.0, 10.0);
+    let project = make_project_with_items(vec![clip]);
     let provider = red_provider();
 
     // When rendering at t=10 (exact end).
@@ -410,5 +410,72 @@ fn clip_at_exact_end_time_is_inactive() {
     assert_eq!(
         pixel, DEFAULT_BG,
         "clip should be inactive at exact end time"
+    );
+}
+
+// ============================================================
+// Group z-ordering rendering tests
+// ============================================================
+
+const BLUE: [u8; 4] = [0, 0, 255, 255];
+
+#[test]
+fn group_with_two_children_renders_in_z_order() {
+    // Given a group with two children: red at z=0, green at z=1.
+    // Both cover the entire canvas.
+    let mut red_child = build_image_item("red", "test.png", 0.0, 10.0);
+    red_child.z_index = 0;
+    let mut green_child = build_image_item("green", "green.png", 0.0, 10.0);
+    green_child.z_index = 1;
+    let group = build_group_item("group", vec![red_child, green_child], vec![]);
+
+    let project = make_project_with_items(vec![group]);
+
+    let mut provider = FakeImageProvider::new();
+    provider.insert_solid(RESOLVED_TEST, 100, 100, RED);
+    provider.insert_solid(RESOLVED_GREEN, 100, 100, GREEN);
+    let provider = Arc::new(provider);
+
+    // When rendering.
+    let frame = render_frame(&project, &provider, 5.0);
+
+    // Then green (higher z) is on top of red.
+    let pixel = pixel_color(&frame, 50, 50);
+    assert_eq!(
+        pixel[1], 255,
+        "green channel should be 255 (green child on top)"
+    );
+}
+
+#[test]
+fn group_children_not_interleaved_with_standalone() {
+    // Given a group at z=5 with a blue child at z=0, and a standalone
+    // green item at z=3. The group is above the standalone, so blue is
+    // on top of green.
+    let mut blue_child = build_image_item("blue", "blue.png", 0.0, 10.0);
+    blue_child.z_index = 0;
+    let mut group = build_group_item("group", vec![blue_child], vec![]);
+    group.z_index = 5;
+
+    let mut green_standalone = build_image_item("green", "green.png", 0.0, 10.0);
+    green_standalone.z_index = 3;
+
+    let project = make_project_with_items(vec![group, green_standalone]);
+
+    let mut provider = FakeImageProvider::new();
+    provider.insert_solid(RESOLVED_TEST, 100, 100, RED);
+    provider.insert_solid(RESOLVED_GREEN, 100, 100, GREEN);
+    provider.insert_solid("/test/blue.png", 100, 100, BLUE);
+    let provider = Arc::new(provider);
+
+    // When rendering.
+    let frame = render_frame(&project, &provider, 5.0);
+
+    // Then the blue group child (z_path [5,0]) renders on top of green
+    // standalone (z_path [3]). The center pixel should be blue.
+    let pixel = pixel_color(&frame, 50, 50);
+    assert_eq!(
+        pixel[2], 255,
+        "blue channel should be 255 (group child on top of standalone)"
     );
 }

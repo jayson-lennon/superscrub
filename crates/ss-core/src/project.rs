@@ -1,6 +1,6 @@
 //! Top-level project configuration.
 //!
-//! A project defines the output settings, audio source, and all clips
+//! A project defines the output settings, audio source, and all items
 //! that make up a video. Projects are serialized as JSON and loaded by
 //! the editor or headless renderer.
 
@@ -8,7 +8,7 @@ pub mod loader;
 
 use std::time::Duration;
 
-use crate::clip::ClipDef;
+use crate::item::ItemDef;
 
 pub(crate) mod serde_duration_secs {
     use serde::Deserialize;
@@ -93,8 +93,8 @@ pub struct Project {
     pub audio_clips: Vec<AudioClipDef>,
     /// Encoding settings for the output video.
     pub encoding: EncodingConfig,
-    /// All clips in the project.
-    pub clips: Vec<ClipDef>,
+    /// All items (images and groups) in the project.
+    pub items: Vec<ItemDef>,
 }
 
 fn default_background() -> [u8; 4] {
@@ -136,7 +136,7 @@ fn default_volume() -> f32 {
     1.0
 }
 
-/// Internal helper for deserializing both old (`audio`) and new (`audio_clips`) formats.
+/// Internal helper for deserializing both old (`clips`) and new (`items`) formats.
 #[derive(Debug, Clone, serde::Deserialize)]
 struct ProjectInner {
     pub resolution: [u32; 2],
@@ -153,7 +153,12 @@ struct ProjectInner {
     pub audio_clips: Vec<AudioClipDef>,
     #[serde(default)]
     pub encoding: EncodingConfig,
-    pub clips: Vec<ClipDef>,
+    /// New-format items field.
+    #[serde(default)]
+    pub items: Vec<ItemDef>,
+    /// Legacy clips field (backward compatibility).
+    #[serde(default)]
+    pub clips: Vec<ItemDef>,
 }
 
 impl<'de> serde::Deserialize<'de> for Project {
@@ -162,6 +167,13 @@ impl<'de> serde::Deserialize<'de> for Project {
         D: serde::Deserializer<'de>,
     {
         let inner = ProjectInner::deserialize(deserializer)?;
+
+        // If items is empty but clips is present, map clips → items.
+        let items = if inner.items.is_empty() && !inner.clips.is_empty() {
+            inner.clips
+        } else {
+            inner.items
+        };
 
         // If audio_clips is empty but audio is present, migrate.
         let audio_clips = if inner.audio_clips.is_empty() {
@@ -190,7 +202,7 @@ impl<'de> serde::Deserialize<'de> for Project {
             background: inner.background,
             audio_clips,
             encoding: inner.encoding,
-            clips: inner.clips,
+            items,
         })
     }
 }
@@ -210,7 +222,7 @@ impl serde::Serialize for Project {
             background: &'a [u8; 4],
             audio_clips: &'a [AudioClipDef],
             encoding: &'a EncodingConfig,
-            clips: &'a Vec<ClipDef>,
+            items: &'a Vec<ItemDef>,
         }
 
         ProjectOut {
@@ -221,7 +233,7 @@ impl serde::Serialize for Project {
             background: &self.background,
             audio_clips: &self.audio_clips,
             encoding: &self.encoding,
-            clips: &self.clips,
+            items: &self.items,
         }
         .serialize(serializer)
     }
@@ -233,7 +245,7 @@ mod tests {
     use std::path::Path;
 
     use super::{EncodingConfig, Project};
-    use crate::clip::{ClipType, FitMode, Sizing};
+    use crate::item::{FitMode, ItemContent, Sizing};
     use crate::path_resolve::resolve_path;
     use crate::test_utils::fixtures::build_project;
 
@@ -249,7 +261,7 @@ mod tests {
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": []
+            "items": []
         }"#;
 
         let project: Project = serde_json::from_str(json).unwrap();
@@ -268,7 +280,7 @@ mod tests {
             "duration": 10.0,
             "output": "out.mp4",
             "encoding": { "crf": 23, "preset": "fast", "pixel_format": "yuv422p" },
-            "clips": []
+            "items": []
         }"#;
 
         let project: Project = serde_json::from_str(json).unwrap();
@@ -300,11 +312,11 @@ mod tests {
 
     #[test]
     fn example_project_file_parses_with_correct_fields() {
-        // Given the example project JSON file.
+        // Given the example project JSON file (still uses "clips" key).
         let json = std::fs::read_to_string("../../examples/basic_project.json")
             .expect("example project file should exist");
 
-        // When parsing it.
+        // When parsing it (backward compatibility: "clips" → "items").
         let project: Project = serde_json::from_str(&json).expect("should parse successfully");
 
         // Then all fields are correct.
@@ -318,24 +330,24 @@ mod tests {
         assert_eq!(audio_clip.path, "assets/song.mp3");
         assert!((audio_clip.start_time - 0.0).abs() < 1e-5);
 
-        assert_eq!(project.clips.len(), 1);
-        let clip = &project.clips[0];
-        assert_eq!(clip.id, "background");
-        assert!(matches!(&clip.clip_type, ClipType::Image { path } if path == "assets/cover.png"));
-        assert_eq!(clip.track, 0);
-        assert!((clip.start_time - 0.0).abs() < 1e-5);
-        assert!((clip.end_time - 30.0).abs() < 1e-5);
-        assert_eq!(clip.z_index, 0);
+        assert_eq!(project.items.len(), 1);
+        let item = &project.items[0];
+        assert_eq!(item.id, "background");
+        assert!(matches!(&item.content, ItemContent::Image { path } if path == "assets/cover.png"));
+        assert_eq!(item.track, 0);
+        assert!((item.start_time - 0.0).abs() < 1e-5);
+        assert!((item.end_time - 30.0).abs() < 1e-5);
+        assert_eq!(item.z_index, 0);
 
         // Check sizing.
         assert!(
-            matches!(&clip.sizing, Sizing::FitRect { x, y, w, h, mode, anchor: _ }
+            matches!(&item.sizing, Sizing::FitRect { x, y, w, h, mode, anchor: _ }
                 if *x == 0 && *y == 0 && *w == 1920 && *h == 1080 && matches!(mode, FitMode::Cover)
             )
         );
 
         // Check animations.
-        assert_eq!(clip.animations.len(), 4);
+        assert_eq!(item.animations.len(), 4);
     }
 
     #[test]
@@ -346,7 +358,7 @@ mod tests {
             "fps": 30,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{
+            "items": [{
                 "id": "bg",
                 "type": "image",
                 "path": "bg.png",
@@ -362,10 +374,10 @@ mod tests {
 
         // Then optional fields get defaults.
         assert!(project.audio_clips.is_empty());
-        let clip = &project.clips[0];
-        assert_eq!(clip.animations.len(), 0);
-        assert_eq!(clip.sizing, Sizing::default());
-        assert_eq!(clip.pivot, [0.5, 0.5]);
+        let item = &project.items[0];
+        assert_eq!(item.animations.len(), 0);
+        assert_eq!(item.sizing, Sizing::default());
+        assert_eq!(item.pivot, [0.5, 0.5]);
     }
 
     #[test]
@@ -457,14 +469,14 @@ mod tests {
     }
 
     #[test]
-    fn project_with_multiple_clips_preserves_clip_order() {
-        // Given a project JSON with three clips in a specific order.
+    fn project_with_multiple_items_preserves_item_order() {
+        // Given a project JSON with three items in a specific order.
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [
+            "items": [
                 {"id": "first", "type": "image", "path": "a.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0},
                 {"id": "second", "type": "image", "path": "b.png", "track": 1, "start_time": 0.0, "end_time": 10.0, "z_index": 1},
                 {"id": "third", "type": "image", "path": "c.png", "track": 2, "start_time": 0.0, "end_time": 10.0, "z_index": 2}
@@ -474,39 +486,39 @@ mod tests {
         // When parsing it.
         let project: Project = serde_json::from_str(json).expect("should parse");
 
-        // Then clip IDs are preserved in their original order.
-        assert_eq!(project.clips.len(), 3);
-        assert_eq!(project.clips[0].id, "first");
-        assert_eq!(project.clips[2].id, "third");
+        // Then item IDs are preserved in their original order.
+        assert_eq!(project.items.len(), 3);
+        assert_eq!(project.items[0].id, "first");
+        assert_eq!(project.items[2].id, "third");
     }
 
     #[test]
-    fn clip_without_sizing_defaults_to_natural() {
-        // Given a clip with sizing omitted (defaults to Natural).
+    fn item_without_sizing_defaults_to_natural() {
+        // Given an item with sizing omitted (defaults to Natural).
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0}]
+            "items": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0}]
         }"#;
 
         // When parsing it.
         let project: Project = serde_json::from_str(json).expect("should parse");
 
-        // Then the clip's sizing is Natural.
-        assert_eq!(project.clips[0].sizing, Sizing::Natural);
+        // Then the item's sizing is Natural.
+        assert_eq!(project.items[0].sizing, Sizing::Natural);
     }
 
     #[test]
-    fn clip_with_explicit_sizing_preserves_dimensions() {
-        // Given a clip with Explicit sizing.
+    fn item_with_explicit_sizing_preserves_dimensions() {
+        // Given an item with Explicit sizing.
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0, "sizing": {"Explicit": {"width": 800, "height": 600}}}]
+            "items": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0, "sizing": {"Explicit": {"width": 800, "height": 600}}}]
         }"#;
 
         // When parsing it.
@@ -514,44 +526,44 @@ mod tests {
 
         // Then the sizing is Explicit with the correct dimensions.
         assert!(
-            matches!(&project.clips[0].sizing, Sizing::Explicit { width, height } if *width == 800 && *height == 600)
+            matches!(&project.items[0].sizing, Sizing::Explicit { width, height } if *width == 800 && *height == 600)
         );
     }
 
     #[test]
-    fn clip_with_scale_sizing_preserves_factor() {
-        // Given a clip with Scale sizing.
+    fn item_with_scale_sizing_preserves_factor() {
+        // Given an item with Scale sizing.
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0, "sizing": {"Scale": 1.5}}]
+            "items": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0, "sizing": {"Scale": 1.5}}]
         }"#;
 
         // When parsing it.
         let project: Project = serde_json::from_str(json).expect("should parse");
 
         // Then the sizing is Scale with the correct factor.
-        assert!(matches!(&project.clips[0].sizing, Sizing::Scale(s) if (*s - 1.5).abs() < 1e-5));
+        assert!(matches!(&project.items[0].sizing, Sizing::Scale(s) if (*s - 1.5).abs() < 1e-5));
     }
 
     #[test]
-    fn clip_with_fit_rect_sizing_preserves_contain_mode_and_dimensions() {
-        // Given a clip with FitRect Contain sizing.
+    fn item_with_fit_rect_sizing_preserves_contain_mode_and_dimensions() {
+        // Given an item with FitRect Contain sizing.
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0, "sizing": {"FitRect": {"x": 100, "y": 50, "w": 640, "h": 480, "mode": "Contain"}}}] }"#;
+            "items": [{"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0, "sizing": {"FitRect": {"x": 100, "y": 50, "w": 640, "h": 480, "mode": "Contain"}}}] }"#;
 
         // When parsing it.
         let project: Project = serde_json::from_str(json).expect("should parse");
 
         // Then the sizing is FitRect with Contain mode.
         assert!(
-            matches!(&project.clips[0].sizing, Sizing::FitRect { x, y, w, h, mode, anchor: _ }
+            matches!(&project.items[0].sizing, Sizing::FitRect { x, y, w, h, mode, anchor: _ }
                 if *x == 100 && *y == 50 && *w == 640 && *h == 480 && matches!(mode, FitMode::Contain)
             )
         );
@@ -564,7 +576,7 @@ mod tests {
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": []
+            "items": []
         }"#;
 
         // When parsing it.
@@ -575,8 +587,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_project_missing_clips_returns_error() {
-        // Given a project JSON missing the required clips field.
+    fn parse_project_missing_items_and_clips_defaults_to_empty() {
+        // Given a project JSON missing both items and clips fields.
         let json = r#"{
             "resolution": [1920, 1080],
             "fps": 60,
@@ -585,10 +597,10 @@ mod tests {
         }"#;
 
         // When parsing it.
-        let result = serde_json::from_str::<Project>(json);
+        let project: Project = serde_json::from_str(json).expect("should parse");
 
-        // Then an error is returned.
-        assert!(result.is_err());
+        // Then items defaults to empty vec.
+        assert!(project.items.is_empty());
     }
 
     #[test]
@@ -611,7 +623,7 @@ mod tests {
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{
+            "items": [{
                 "id": "test",
                 "type": "image",
                 "path": "img.png",
@@ -633,7 +645,7 @@ mod tests {
         let project: Project = serde_json::from_str(json).expect("should parse");
 
         // Then both keyframes have Linear as their easing default.
-        let keyframes = &project.clips[0].animations[0].keyframes;
+        let keyframes = &project.items[0].animations[0].keyframes;
         assert_eq!(keyframes[0].easing, crate::animation::Easing::Linear);
     }
 
@@ -645,7 +657,7 @@ mod tests {
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": [{
+            "items": [{
                 "id": "test",
                 "type": "image",
                 "path": "img.png",
@@ -667,7 +679,7 @@ mod tests {
         let project: Project = serde_json::from_str(json).expect("should parse");
 
         // Then the second keyframe also defaults to Linear.
-        let keyframes = &project.clips[0].animations[0].keyframes;
+        let keyframes = &project.items[0].animations[0].keyframes;
         assert_eq!(keyframes[1].easing, crate::animation::Easing::Linear);
     }
 
@@ -680,7 +692,7 @@ mod tests {
             "duration": 30.0,
             "output": "out.mp4",
             "audio": { "path": "song.mp3", "start_time": 2.0 },
-            "clips": []
+            "items": []
         }"#;
 
         // When parsing it.
@@ -707,7 +719,7 @@ mod tests {
             "output": "out.mp4",
             "audio": { "path": "old.mp3", "start_time": 0.0 },
             "audio_clips": [{ "id": "new", "path": "new.mp3", "track": 0, "start_time": 0.0, "end_time": 10.0, "volume": 0.5 }],
-            "clips": []
+            "items": []
         }"#;
 
         // When parsing it.
@@ -727,7 +739,7 @@ mod tests {
             "fps": 60,
             "duration": 10.0,
             "output": "out.mp4",
-            "clips": []
+            "items": []
         }"#;
 
         // When parsing it.
@@ -789,8 +801,22 @@ mod tests {
     }
 
     #[test]
+    fn serialize_uses_items_not_clips() {
+        // Given a project.
+        let project = build_project(vec![]);
+
+        // When serializing to JSON.
+        let json = serde_json::to_string(&project).unwrap();
+
+        // Then the JSON uses "items" not "clips".
+        let as_value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(as_value.get("items").is_some());
+        assert!(as_value.get("clips").is_none());
+    }
+
+    #[test]
     fn example_project_file_parses_with_audio_clips() {
-        // Given the updated example project JSON.
+        // Given the updated example project JSON (uses legacy "clips" key).
         let json = std::fs::read_to_string("../../examples/basic_project.json")
             .expect("example project file should exist");
 
@@ -806,5 +832,98 @@ mod tests {
         assert!((clip.start_time - 0.0).abs() < 1e-5);
         assert!((clip.end_time - 30.0).abs() < 1e-5);
         assert!((clip.volume - 1.0).abs() < 1e-5);
+    }
+
+    // ============================================================
+    // Backward compatibility tests
+    // ============================================================
+
+    #[test]
+    fn legacy_clips_field_maps_to_items() {
+        // Given a project JSON with "clips" instead of "items".
+        let json = r#"{
+            "resolution": [1920, 1080],
+            "fps": 60,
+            "duration": 10.0,
+            "output": "out.mp4",
+            "clips": [
+                {"id": "bg", "type": "image", "path": "bg.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0}
+            ]
+        }"#;
+
+        // When parsing it.
+        let project: Project = serde_json::from_str(json).expect("should parse");
+
+        // Then items is populated from the clips field.
+        assert_eq!(project.items.len(), 1);
+        assert_eq!(project.items[0].id, "bg");
+    }
+
+    #[test]
+    fn items_field_takes_precedence_over_clips() {
+        // Given a project JSON with both "items" and "clips".
+        let json = r#"{
+            "resolution": [1920, 1080],
+            "fps": 60,
+            "duration": 10.0,
+            "output": "out.mp4",
+            "items": [
+                {"id": "new", "type": "image", "path": "new.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0}
+            ],
+            "clips": [
+                {"id": "old", "type": "image", "path": "old.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0}
+            ]
+        }"#;
+
+        // When parsing it.
+        let project: Project = serde_json::from_str(json).expect("should parse");
+
+        // Then items is used (not clips).
+        assert_eq!(project.items.len(), 1);
+        assert_eq!(project.items[0].id, "new");
+    }
+
+    #[test]
+    fn group_item_serializes_and_deserializes() {
+        // Given a project with a group item.
+        let json = r#"{
+            "resolution": [1920, 1080],
+            "fps": 60,
+            "duration": 10.0,
+            "output": "out.mp4",
+            "items": [
+                {
+                    "id": "my-group",
+                    "type": "group",
+                    "children": [
+                        {"id": "child1", "type": "image", "path": "a.png", "track": 0, "start_time": 0.0, "end_time": 10.0, "z_index": 0}
+                    ],
+                    "track": 0,
+                    "start_time": 0.0,
+                    "end_time": 10.0,
+                    "z_index": 0,
+                    "animations": [
+                        {"property": "opacity", "keyframes": [{"time": 0.0, "value": 0.5, "easing": "Linear"}]}
+                    ]
+                }
+            ]
+        }"#;
+
+        // When parsing it.
+        let project: Project = serde_json::from_str(json).expect("should parse");
+
+        // Then the group is parsed correctly.
+        assert_eq!(project.items.len(), 1);
+        assert!(
+            matches!(&project.items[0].content, ItemContent::Group { children } if children.len() == 1)
+        );
+
+        // When serializing and deserializing again (round-trip).
+        let out_json = serde_json::to_string(&project).unwrap();
+        let back: Project = serde_json::from_str(&out_json).expect("round-trip");
+        assert_eq!(back.items.len(), 1);
+        assert!(
+            matches!(&back.items[0].content, ItemContent::Group { children } if children.len() == 1)
+        );
     }
 }

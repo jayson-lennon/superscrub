@@ -11,7 +11,7 @@ use ss_core::project::{EncodingConfig, Project};
 use ss_preview::{BackgroundPreviewCache, PreviewCache};
 
 fn minimal_project() -> Project {
-    let clip = ss_core::test_utils::fixtures::build_image_clip("test", "test.png", 0.0, 1.0);
+    let clip = ss_core::test_utils::fixtures::build_image_item("test", "test.png", 0.0, 1.0);
     Project {
         resolution: [100, 100],
         fps: 10,
@@ -20,7 +20,7 @@ fn minimal_project() -> Project {
         background: [0, 0, 0, 255],
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips: vec![clip],
+        items: vec![clip],
     }
 }
 

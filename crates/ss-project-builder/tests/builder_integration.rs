@@ -200,10 +200,131 @@ fn built_project_round_trips_through_serde() {
     assert_eq!(project.fps, 30);
     assert!((project.duration.as_secs_f64() - 10.0).abs() < 1e-5);
     assert_eq!(project.output, "out.mp4");
-    assert_eq!(project.clips.len(), 1);
-    assert_eq!(project.clips[0].id, "test");
-    assert_eq!(project.clips[0].animations.len(), 1);
-    assert_eq!(project.clips[0].animations[0].keyframes.len(), 2);
+    assert_eq!(project.items.len(), 1);
+    assert_eq!(project.items[0].id, "test");
+    assert_eq!(project.items[0].animations.len(), 1);
+    assert_eq!(project.items[0].animations[0].keyframes.len(), 2);
     assert_eq!(project.audio_clips.len(), 1);
     assert_eq!(project.audio_clips[0].id, "music");
+}
+
+// ============================================================
+// Group serialization round-trip test
+// ============================================================
+
+#[test]
+fn project_with_group_round_trips_through_serde() {
+    // Given a project with a group containing children and animations.
+    let child = ClipBuilder::new(
+        ClipParams::builder()
+            .id("child")
+            .path("img.png")
+            .end_time(10.0)
+            .build(),
+    )
+    .add_animation(
+        AnimBuilder::opacity()
+            .keyframe(0.0, 1.0)
+            .keyframe(10.0, 0.0),
+    );
+
+    let child_item = child.build().unwrap();
+    let group_params = GroupParams::builder()
+        .id("group")
+        .children(vec![child_item])
+        .end_time(10.0)
+        .build();
+    let group = GroupBuilder::new(group_params)
+        .add_animation(AnimBuilder::opacity().keyframe(0.0, 0.0).keyframe(3.0, 1.0));
+
+    let json = ProjectBuilder::new(
+        ProjectParams::builder()
+            .resolution([1920, 1080])
+            .fps(60)
+            .duration(10.0)
+            .output("out.mp4")
+            .build(),
+    )
+    .add_group(group)
+    .to_json_string()
+    .unwrap();
+
+    // When parsing back via serde.
+    let project: ss_core::Project = serde_json::from_str(&json).unwrap();
+
+    // Then the group and its children survive the round trip.
+    assert_eq!(project.items.len(), 1);
+    assert_eq!(project.items[0].id, "group");
+    assert_eq!(project.items[0].animations.len(), 1);
+    assert_eq!(
+        project.items[0].animations[0].property,
+        ss_core::AnimatableProperty::Opacity
+    );
+
+    match &project.items[0].content {
+        ss_core::ItemContent::Group { children } => {
+            assert_eq!(children.len(), 1);
+            assert_eq!(children[0].id, "child");
+            assert_eq!(children[0].animations.len(), 1);
+        }
+        _ => panic!("expected group content"),
+    }
+}
+
+#[test]
+fn project_with_mixed_clips_and_groups_round_trips() {
+    // Given a project with both clips and groups.
+    let clip = ClipBuilder::new(
+        ClipParams::builder()
+            .id("standalone")
+            .path("img.png")
+            .end_time(10.0)
+            .build(),
+    );
+
+    let child = ClipBuilder::new(
+        ClipParams::builder()
+            .id("grouped")
+            .path("img2.png")
+            .end_time(10.0)
+            .build(),
+    )
+    .build()
+    .unwrap();
+
+    let group_params = GroupParams::builder()
+        .id("my-group")
+        .children(vec![child])
+        .end_time(10.0)
+        .build();
+    let group = GroupBuilder::new(group_params);
+
+    let json = ProjectBuilder::new(
+        ProjectParams::builder()
+            .resolution([1280, 720])
+            .fps(30)
+            .duration(10.0)
+            .output("out.mp4")
+            .build(),
+    )
+    .add_clip(clip)
+    .add_group(group)
+    .to_json_string()
+    .unwrap();
+
+    // When parsing back via serde.
+    let project: ss_core::Project = serde_json::from_str(&json).unwrap();
+
+    // Then both items are present with correct types.
+    assert_eq!(project.items.len(), 2);
+    assert_eq!(project.items[0].id, "standalone");
+    assert!(matches!(
+        project.items[0].content,
+        ss_core::ItemContent::Image { .. }
+    ));
+    assert_eq!(project.items[1].id, "my-group");
+    assert!(matches!(
+        project.items[1].content,
+        ss_core::ItemContent::Group { .. }
+    ));
 }

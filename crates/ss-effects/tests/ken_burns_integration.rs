@@ -10,7 +10,8 @@ use std::sync::{Arc, Mutex};
 
 use ss_core::AnimatableProperty;
 use ss_effects::{
-    KenBurnsBuilder, KenBurnsDirection, KenBurnsParams, KenBurnsSegmentParams, opacity,
+    KenBurnsBuilder, KenBurnsDirection, KenBurnsParams, KenBurnsSegmentParams, group_opacity,
+    opacity,
 };
 use ss_project_builder::{ClipBuilder, ClipParams, ProjectBuilder, ProjectParams};
 
@@ -45,7 +46,7 @@ fn project_params(duration: f64) -> ProjectParams {
 }
 
 /// Extracts the opacity animation from a built clip.
-fn opacity_track(clip: &ss_core::ClipDef) -> &ss_core::AnimationTrack {
+fn opacity_track(clip: &ss_core::ItemDef) -> &ss_core::AnimationTrack {
     clip.animations
         .iter()
         .find(|a| a.property == AnimatableProperty::Opacity)
@@ -53,7 +54,7 @@ fn opacity_track(clip: &ss_core::ClipDef) -> &ss_core::AnimationTrack {
 }
 
 /// Extracts the translate_x animation from a built clip.
-fn translate_x_track(clip: &ss_core::ClipDef) -> &ss_core::AnimationTrack {
+fn translate_x_track(clip: &ss_core::ItemDef) -> &ss_core::AnimationTrack {
     clip.animations
         .iter()
         .find(|a| a.property == AnimatableProperty::TranslateX)
@@ -61,7 +62,7 @@ fn translate_x_track(clip: &ss_core::ClipDef) -> &ss_core::AnimationTrack {
 }
 
 /// Extracts the scale_x animation from a built clip.
-fn scale_x_track(clip: &ss_core::ClipDef) -> &ss_core::AnimationTrack {
+fn scale_x_track(clip: &ss_core::ItemDef) -> &ss_core::AnimationTrack {
     clip.animations
         .iter()
         .find(|a| a.property == AnimatableProperty::ScaleX)
@@ -99,11 +100,11 @@ fn e2e_multi_image_ken_burns_with_overlay_produces_valid_project() {
         .unwrap();
 
     // Then the project has 4 clips total (3 Ken Burns + 1 overlay).
-    assert_eq!(project.clips.len(), 4);
+    assert_eq!(project.items.len(), 4);
 
     // And Ken Burns clips are ordered by descending z-index.
     let ken_burns_clips: Vec<_> = project
-        .clips
+        .items
         .iter()
         .filter(|c| c.id.starts_with("ken_burns_"))
         .collect();
@@ -112,13 +113,13 @@ fn e2e_multi_image_ken_burns_with_overlay_produces_valid_project() {
     assert!(ken_burns_clips[1].z_index > ken_burns_clips[2].z_index);
 
     // And the overlay clip has a distinct z-index.
-    let overlay_clip = project.clips.iter().find(|c| c.id == "overlay").unwrap();
+    let overlay_clip = project.items.iter().find(|c| c.id == "overlay").unwrap();
     assert_eq!(overlay_clip.z_index, 100);
 
     // And the JSON output is valid (round-trips through serde).
     let json = serde_json::to_string_pretty(&project).unwrap();
     let back: ss_core::Project = serde_json::from_str(&json).unwrap();
-    assert_eq!(back.clips.len(), 4);
+    assert_eq!(back.items.len(), 4);
 }
 
 // ---------------------------------------------------------------------------
@@ -342,14 +343,14 @@ fn add_clips_at_offsets_clips_and_keyframes_into_project() {
         .unwrap();
 
     // Then each clip has start_time=10.0, end_time=40.0.
-    assert_eq!(project.clips.len(), 2);
-    for clip in &project.clips {
+    assert_eq!(project.items.len(), 2);
+    for clip in &project.items {
         assert_eq!(clip.start_time, 10.0);
         assert_eq!(clip.end_time, 40.0);
     }
 
     // And all keyframe times across all animations are shifted by 10.0.
-    for clip in &project.clips {
+    for clip in &project.items {
         for anim in &clip.animations {
             for kf in &anim.keyframes {
                 assert!(
@@ -384,16 +385,16 @@ fn composability_pipeline_opacity_then_add_clips_at() {
         .unwrap();
 
     // Then the project has 2 clips.
-    assert_eq!(project.clips.len(), 2);
+    assert_eq!(project.items.len(), 2);
 
     // Each clip is offset by 5.0 (start=5.0, end=35.0).
-    for clip in &project.clips {
+    for clip in &project.items {
         assert_eq!(clip.start_time, 5.0);
         assert_eq!(clip.end_time, 35.0);
     }
 
     // And opacity keyframes are scaled by 0.5 (max 0.5 instead of 1.0).
-    for clip in &project.clips {
+    for clip in &project.items {
         let op = opacity_track(clip);
         // The first keyframe (fade_start, value=1.0) should now be 0.5.
         assert!(
@@ -507,7 +508,7 @@ fn single_segment_produces_pan_zoom_and_opacity_fade() {
     // The clip can be used in a project and serialized to JSON.
     //
     // Re-build the Ken Burns clips and add them directly via add_clips_at
-    // to verify the full pipeline without reconstructing from ClipDef.
+    // to verify the full pipeline without reconstructing from ItemDef.
     let params2 = KenBurnsParams::builder()
         .duration(15.0)
         .resolution([1920, 1080])
@@ -523,4 +524,96 @@ fn single_segment_produces_pan_zoom_and_opacity_fade() {
         .unwrap();
     let json = serde_json::to_string_pretty(&project).unwrap();
     assert!(serde_json::from_str::<ss_core::Project>(&json).is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// Step 10: group_opacity integration
+// ---------------------------------------------------------------------------
+
+#[test]
+fn group_opacity_with_ken_burns_pipeline() {
+    // Given a Ken Burns effect with 2 segments.
+    let clips = KenBurnsBuilder::new(
+        KenBurnsParams::builder()
+            .duration(30.0)
+            .resolution([1920, 1080])
+            .default_hold_duration(5.0)
+            .default_fade_duration(2.0)
+            .build(),
+    )
+    .add_segment(segment("img1.png", KenBurnsDirection::ZoomInCenter))
+    .add_segment(segment("img2.png", KenBurnsDirection::ZoomInCenter))
+    .build();
+
+    // When wrapping in group_opacity and adding via add_item.
+    let group = group_opacity("dimmed", clips, 0.5).unwrap();
+    let project = ProjectBuilder::new(project_params(30.0))
+        .add_item(group)
+        .build()
+        .unwrap();
+
+    // Then the project has 1 item (the group).
+    assert_eq!(project.items.len(), 1);
+
+    // And its content is Group { children: [2 images] }.
+    let item = &project.items[0];
+    assert_eq!(item.id, "dimmed");
+    if let ss_core::ItemContent::Group { children } = &item.content {
+        assert_eq!(children.len(), 2);
+        assert!(children[0].id.starts_with("ken_burns_"));
+        assert!(children[1].id.starts_with("ken_burns_"));
+    } else {
+        panic!("expected group content");
+    }
+
+    // And its opacity animation has keyframe (0.0, 0.5).
+    let op = item
+        .animations
+        .iter()
+        .find(|a| a.property == AnimatableProperty::Opacity)
+        .expect("group should have opacity animation");
+    assert_eq!(op.keyframes.len(), 1);
+    assert_eq!(op.keyframes[0].time, 0.0);
+    assert!((op.keyframes[0].value - 0.5).abs() < 0.001);
+
+    // And the project serializes and round-trips through serde.
+    let json = serde_json::to_string_pretty(&project).unwrap();
+    let back: ss_core::Project = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.items.len(), 1);
+}
+
+#[test]
+fn group_opacity_composes_with_destructive_opacity() {
+    // Given a Ken Burns effect with 2 segments.
+    let clips = KenBurnsBuilder::new(
+        KenBurnsParams::builder()
+            .duration(30.0)
+            .resolution([1920, 1080])
+            .default_hold_duration(5.0)
+            .default_fade_duration(2.0)
+            .build(),
+    )
+    .add_segment(segment("img1.png", KenBurnsDirection::ZoomInCenter))
+    .add_segment(segment("img2.png", KenBurnsDirection::ZoomInCenter))
+    .build();
+
+    // When applying destructive opacity(0.8) then group_opacity(0.5).
+    let dimmed = opacity(clips, 0.8);
+    let group = group_opacity("faded", dimmed, 0.5).unwrap();
+    let project = ProjectBuilder::new(project_params(30.0))
+        .add_item(group)
+        .build()
+        .unwrap();
+
+    // Then resolving items at a time when children are at full opacity
+    // gives destructive (0.8) × group (0.5) = 0.4.
+    let resolved = ss_core::resolve_items(&project.items, 0.0).unwrap();
+    assert_eq!(resolved.len(), 2);
+    for item in &resolved {
+        assert!(
+            (item.opacity - 0.4).abs() < 0.01,
+            "expected interpolated opacity ≈ 0.4, got {}",
+            item.opacity
+        );
+    }
 }

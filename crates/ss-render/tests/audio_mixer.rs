@@ -17,7 +17,7 @@ fn make_project_with_audio_clips(clips: Vec<AudioClipDef>) -> Project {
         background: [0, 0, 0, 255],
         audio_clips: clips,
         encoding: EncodingConfig::default(),
-        clips: vec![],
+        items: vec![],
     }
 }
 

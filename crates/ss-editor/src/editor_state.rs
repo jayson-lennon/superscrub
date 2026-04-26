@@ -171,12 +171,12 @@ mod tests {
     use std::path::PathBuf;
 
     use ss_core::project::{EncodingConfig, Project};
-    use ss_core::test_utils::fixtures::build_image_clip;
+    use ss_core::test_utils::fixtures::build_image_item;
 
     use super::EditorState;
 
     fn minimal_project() -> Project {
-        let clip = build_image_clip("clip1", "img.png", 0.0, 10.0);
+        let clip = build_image_item("clip1", "img.png", 0.0, 10.0);
         Project {
             resolution: [200, 100],
             fps: 30,
@@ -185,7 +185,7 @@ mod tests {
             background: [0, 0, 0, 255],
             audio_clips: vec![],
             encoding: EncodingConfig::default(),
-            clips: vec![clip],
+            items: vec![clip],
         }
     }
 

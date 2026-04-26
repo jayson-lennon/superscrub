@@ -3,7 +3,7 @@
 //! Converts a clip's [`Sizing`] mode into a concrete placement rectangle
 //! on the canvas, given the source image dimensions and canvas resolution.
 
-use ss_core::clip::{FitAnchor, FitMode, Sizing};
+use ss_core::item::{FitAnchor, FitMode, Sizing};
 
 /// Result of computing a clip's base placement on the canvas.
 #[derive(Debug, Clone)]
@@ -139,7 +139,7 @@ fn compute_anchor_offset(
 #[allow(clippy::too_many_arguments)]
 mod tests {
     use super::compute_placement;
-    use ss_core::clip::{FitAnchor, FitMode, Sizing};
+    use ss_core::item::{FitAnchor, FitMode, Sizing};
 
     #[test]
     fn natural_sizing_returns_image_dimensions_at_origin() {

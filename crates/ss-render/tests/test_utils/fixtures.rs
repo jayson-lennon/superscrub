@@ -11,7 +11,7 @@ pub const PROJECT_FILE: &str = "/test/project.json";
 ///
 /// Resolution: 100×50, FPS: 10, Duration: 2.0s (20 frames).
 pub fn minimal_project() -> Project {
-    let clip = ss_core::test_utils::fixtures::build_image_clip("clip1", "img.png", 0.0, 2.0);
+    let clip = ss_core::test_utils::fixtures::build_image_item("clip1", "img.png", 0.0, 2.0);
     Project {
         resolution: [100, 50],
         fps: 10,
@@ -20,7 +20,7 @@ pub fn minimal_project() -> Project {
         background: [0, 0, 0, 255],
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips: vec![clip],
+        items: vec![clip],
     }
 }
 
@@ -37,6 +37,6 @@ pub fn empty_project() -> Project {
         background: [0, 0, 0, 255],
         audio_clips: vec![],
         encoding: EncodingConfig::default(),
-        clips: vec![],
+        items: vec![],
     }
 }

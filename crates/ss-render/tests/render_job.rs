@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use ss_compositor::{CompositorRenderer, FakeImageProvider, FrameRendererService};
-use ss_core::clip::ClipType;
+use ss_core::item::ItemContent;
 use ss_render::{FakeFrameEncoder, ProgressTracker, RenderJob, RenderPhase, range_frame_count};
 
 mod test_utils;
@@ -14,9 +14,9 @@ mod test_utils;
 fn create_job_for(project: &ss_core::project::Project) -> RenderJob {
     let project_file = PathBuf::from(test_utils::fixtures::PROJECT_FILE);
     let mut provider = FakeImageProvider::new();
-    for clip in &project.clips {
+    for clip in &project.items {
         #[allow(irrefutable_let_patterns)]
-        if let ClipType::Image { path } = &clip.clip_type {
+        if let ItemContent::Image { path } = &clip.content {
             let resolved =
                 ss_core::path_resolve::resolve_path(&project_file, path).expect("resolve path");
             provider.insert_solid(

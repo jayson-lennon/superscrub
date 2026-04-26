@@ -30,7 +30,7 @@
 //! The [`sizing`] module provides convenience constructors for [`Sizing`](ss_core::Sizing)
 //! variants.
 
-use ss_core::{ClipDef, ClipType, Sizing};
+use ss_core::{ItemContent, ItemDef, Sizing};
 
 use crate::{AnimBuilder, BuilderError, BuilderErrors};
 
@@ -117,12 +117,12 @@ pub struct ClipParams {
     pub pivot: [f32; 2],
 }
 
-/// Builder for constructing a [`ClipDef`] with optional animations.
+/// Builder for constructing an [`ItemDef`] with optional animations.
 ///
 /// Wraps a fully-built [`ClipParams`] (enforced by `bon` at compile time)
 /// and adds animation accumulation via [`add_animation`](ClipBuilder::add_animation).
 ///
-/// Call [`build`](ClipBuilder::build) to validate and produce a `ClipDef`.
+/// Call [`build`](ClipBuilder::build) to validate and produce an `ItemDef`.
 pub struct ClipBuilder {
     params: ClipParams,
     anim_builders: Vec<AnimBuilder>,
@@ -191,7 +191,7 @@ impl ClipBuilder {
         Self::from_parts(params, shifted_anims)
     }
 
-    /// Consumes the builder, validates, and returns a [`ClipDef`].
+    /// Consumes the builder, validates, and returns an [`ItemDef`].
     ///
     /// # Validation
     ///
@@ -204,7 +204,7 @@ impl ClipBuilder {
     /// # Errors
     ///
     /// Returns `Err(BuilderErrors)` if any validation rules are violated.
-    pub fn build(self) -> Result<ClipDef, BuilderErrors> {
+    pub fn build(self) -> Result<ItemDef, BuilderErrors> {
         let mut errors = BuilderErrors::new();
         let clip_id = &self.params.id;
         let clip_ctx = format!("clip \"{clip_id}\"");
@@ -236,9 +236,9 @@ impl ClipBuilder {
 
         errors.into_result()?;
 
-        Ok(ClipDef {
+        Ok(ItemDef {
             id: self.params.id,
-            clip_type: ClipType::Image {
+            content: ItemContent::Image {
                 path: self.params.path,
             },
             track: self.params.track,
@@ -255,7 +255,7 @@ impl ClipBuilder {
 /// Returns the user-facing name for an [`AnimatableProperty`](ss_core::AnimatableProperty).
 ///
 /// Uses the serde rename value (e.g., `"scale_x"`) for readable error messages.
-fn property_display_name(property: ss_core::AnimatableProperty) -> &'static str {
+pub(crate) fn property_display_name(property: ss_core::AnimatableProperty) -> &'static str {
     match property {
         ss_core::AnimatableProperty::ScaleX => "scale_x",
         ss_core::AnimatableProperty::ScaleY => "scale_y",
@@ -293,8 +293,8 @@ mod tests {
         // Then defaults are applied correctly.
         assert_eq!(clip.id, "test");
         assert_eq!(
-            clip.clip_type,
-            ClipType::Image {
+            clip.content,
+            ItemContent::Image {
                 path: "img.png".into(),
             }
         );
@@ -504,8 +504,8 @@ mod tests {
         // Then the strings are properly owned.
         assert_eq!(clip.id, "test");
         assert_eq!(
-            clip.clip_type,
-            ClipType::Image {
+            clip.content,
+            ItemContent::Image {
                 path: "img.png".into(),
             }
         );
