@@ -47,6 +47,13 @@ pub struct AudioClipParams {
     /// Volume level. Default: 1.0.
     #[builder(default = 1.0)]
     pub volume: f32,
+    /// Offset into the source audio file where playback begins (seconds).
+    #[builder(default = 0.0)]
+    pub source_offset: f64,
+    /// Offset into the source audio file where playback ends (seconds).
+    /// A value of 0.0 means play to the end of the source file.
+    #[builder(default = 0.0)]
+    pub trim_end: f64,
 }
 
 /// Builder for constructing an [`AudioClipDef`] with runtime validation.
@@ -96,8 +103,8 @@ impl AudioClipBuilder {
             start_time: self.params.start_time,
             end_time: self.params.end_time,
             volume: self.params.volume,
-            source_offset: 0.0,
-            trim_end: 0.0,
+            source_offset: self.params.source_offset,
+            trim_end: self.params.trim_end,
         })
     }
 }
