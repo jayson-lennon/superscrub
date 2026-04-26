@@ -18,3 +18,5 @@ perf.*
 
 # app
 projects/
+*.flac
+*.mp4
