@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use error_stack::Report;
 use image::{Rgba, RgbaImage};
@@ -18,7 +19,7 @@ use crate::image::ImageProvider;
 /// Use [`FakeImageProvider::insert_solid`] to add test images, and check [`FakeImageProvider::load_count`]
 /// to verify caching behavior.
 pub struct FakeImageProvider {
-    images: HashMap<PathBuf, RgbaImage>,
+    images: HashMap<PathBuf, Arc<RgbaImage>>,
     /// Number of times `get` has been called (for cache verification).
     pub load_count: AtomicUsize,
 }
@@ -35,7 +36,7 @@ impl FakeImageProvider {
     /// Insert a solid-color image of the given dimensions.
     pub fn insert_solid(&mut self, path: &str, width: u32, height: u32, color: [u8; 4]) {
         let img = RgbaImage::from_pixel(width, height, Rgba(color));
-        self.images.insert(PathBuf::from(path), img);
+        self.images.insert(PathBuf::from(path), Arc::new(img));
     }
 }
 
@@ -50,7 +51,7 @@ impl ImageProvider for FakeImageProvider {
         "fake"
     }
 
-    fn get(&self, path: &Path) -> Result<RgbaImage, Report<ImageLoadError>> {
+    fn get(&self, path: &Path) -> Result<Arc<RgbaImage>, Report<ImageLoadError>> {
         self.load_count.fetch_add(1, Ordering::SeqCst);
         self.images
             .get(path)

@@ -4,6 +4,7 @@
 //! enabling dependency injection for testing.
 
 use std::path::Path;
+use std::sync::Arc;
 
 pub mod fake;
 pub mod filesystem;
@@ -24,8 +25,11 @@ pub trait ImageProvider: Send + Sync {
 
     /// Load or retrieve a cached image by path.
     ///
+    /// Returns an [`Arc<RgbaImage>`] to avoid cloning large pixel buffers
+    /// on cache hits. Callers can dereference the Arc to access the image data.
+    ///
     /// # Errors
     ///
     /// Returns an error if the image cannot be loaded.
-    fn get(&self, path: &Path) -> Result<RgbaImage, Report<ImageLoadError>>;
+    fn get(&self, path: &Path) -> Result<Arc<RgbaImage>, Report<ImageLoadError>>;
 }

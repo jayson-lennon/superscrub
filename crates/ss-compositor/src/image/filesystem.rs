@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use error_stack::{Report, ResultExt};
 use image::RgbaImage;
@@ -16,7 +16,7 @@ use crate::image::ImageProvider;
 
 /// Loads images from the filesystem and caches them in memory.
 pub struct FilesystemImageProvider {
-    cache: Mutex<HashMap<PathBuf, RgbaImage>>,
+    cache: Mutex<HashMap<PathBuf, Arc<RgbaImage>>>,
 }
 
 impl FilesystemImageProvider {
@@ -39,8 +39,9 @@ impl ImageProvider for FilesystemImageProvider {
         "filesystem"
     }
 
-    fn get(&self, path: &Path) -> Result<RgbaImage, Report<ImageLoadError>> {
-        // Check cache first.
+    fn get(&self, path: &Path) -> Result<Arc<RgbaImage>, Report<ImageLoadError>> {
+        // Check cache first — Arc::clone is just a refcount bump (~8 bytes),
+        // not a full pixel buffer copy (~8 MB at 1080p).
         if let Some(img) = self.cache.lock().unwrap().get(path) {
             return Ok(img.clone());
         }
@@ -53,11 +54,12 @@ impl ImageProvider for FilesystemImageProvider {
 
         debug!("image loaded: {}", path.display());
 
+        let arc = Arc::new(img);
         self.cache
             .lock()
             .unwrap()
-            .insert(path.to_path_buf(), img.clone());
+            .insert(path.to_path_buf(), arc.clone());
 
-        Ok(img)
+        Ok(arc)
     }
 }

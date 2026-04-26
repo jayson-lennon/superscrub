@@ -10,10 +10,11 @@ Cargo.lock
 # Generated example assets
 examples/effects/
 
-# Code analysis
+# Analysis
 coverage.lcov
 debt.json
+flamegraph*.svg
+perf.*
 
-# projects
+# app
 projects/
-project/
