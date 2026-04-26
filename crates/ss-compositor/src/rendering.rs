@@ -8,6 +8,7 @@ use std::path::Path;
 use error_stack::Report;
 use image::RgbaImage;
 
+pub mod buffer_pool;
 pub mod compositor;
 pub mod service;
 

@@ -429,7 +429,10 @@ fn zero_opacity_clip_does_not_appear() {
 
     // Then the frame is the background color — the clip contributed nothing.
     let pixel = pixel_color(&frame, 50, 50);
-    assert_eq!(pixel, DEFAULT_BG, "clip with zero opacity should not appear");
+    assert_eq!(
+        pixel, DEFAULT_BG,
+        "clip with zero opacity should not appear"
+    );
 }
 
 // ============================================================

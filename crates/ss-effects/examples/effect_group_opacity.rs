@@ -14,8 +14,7 @@ use std::path::Path;
 use image::{Rgba, RgbaImage};
 use ss_effects::group_opacity;
 use ss_project_builder::{
-    AnimBuilder, ClipBuilder, ClipParams, ProjectBuilder, ProjectParams,
-    clip_builder::sizing,
+    AnimBuilder, ClipBuilder, ClipParams, ProjectBuilder, ProjectParams, clip_builder::sizing,
 };
 
 /// Output directory for generated assets and project JSON.
@@ -111,11 +110,13 @@ fn build_project(dir: &Path) -> std::path::PathBuf {
     // We rebuild the group with an explicit opacity track: visible for 2s, then fade out over 3s.
     let group_with_fade = {
         let mut g = group;
-        g.animations = vec![AnimBuilder::opacity()
-            .keyframe(0.0, 1.0)
-            .keyframe(2.0, 1.0)
-            .keyframe(5.0, 0.0)
-            .build()];
+        g.animations = vec![
+            AnimBuilder::opacity()
+                .keyframe(0.0, 1.0)
+                .keyframe(2.0, 1.0)
+                .keyframe(5.0, 0.0)
+                .build(),
+        ];
         g
     };
 

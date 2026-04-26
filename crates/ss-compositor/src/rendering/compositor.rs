@@ -25,10 +25,36 @@ use ss_core::project::Project;
 use ss_core::transform::ResolvedItem;
 
 use crate::image::ImageProvider;
+use crate::rendering::buffer_pool::{self, BufferPool, PooledBuffer};
 use crate::rendering::CompositorError;
 use crate::rendering::FrameRenderer;
-use crate::sizing::{compute_placement, PlacedRect};
+use crate::sizing::{PlacedRect, compute_placement};
 use crate::viewport::Viewport;
+
+/// Pre-computed plan for warping a clip, produced during the plan phase.
+///
+/// Contains all information needed to decide visibility (AABB, opacity, transform class)
+/// and to perform the warp (source, forward matrix, placement). Produced without
+/// allocating a warp output buffer.
+#[allow(dead_code)]
+struct ClipPlan {
+    /// The resolved item (animations interpolated, z-path computed).
+    resolved: ResolvedItem,
+    /// The source image (from cache, shared via Arc).
+    source: Arc<RgbaImage>,
+    /// Base placement rectangle (sized to viewport-space).
+    placement: PlacedRect,
+    /// Forward transform matrix: source pixel → canvas pixel.
+    forward: Affine3x3,
+    /// Axis-aligned bounding box clamped to canvas: `(x, y, w, h)`.
+    aabb: (u32, u32, u32, u32),
+    /// Effective opacity (composed through ancestor chain).
+    opacity: f32,
+    /// Whether the transform is scale+translate or general affine.
+    transform_class: TransformClass,
+    /// Viewport-to-project scale factors for translate animation.
+    viewport_scale: (f32, f32),
+}
 
 /// The main compositor renderer.
 ///
@@ -36,12 +62,16 @@ use crate::viewport::Viewport;
 /// clips with transforms, alpha blending, and z-ordering.
 pub struct CompositorRenderer {
     image_provider: Arc<dyn ImageProvider>,
+    buffer_pool: BufferPool,
 }
 
 impl CompositorRenderer {
-    /// Create a new renderer with the given image provider.
+    /// Create a new renderer with the given image provider and a default buffer pool.
     pub fn new(image_provider: Arc<dyn ImageProvider>) -> Self {
-        Self { image_provider }
+        Self {
+            image_provider,
+            buffer_pool: BufferPool::new(8),
+        }
     }
 }
 
@@ -69,18 +99,11 @@ impl FrameRenderer for CompositorRenderer {
         // 3. Resolve active items (filtering, sorting, group flattening).
         let resolved = resolve_items(&project.items, time).change_context(CompositorError)?;
 
-        info!(
-            clip_count = resolved.len(),
-            rayon_threads = rayon::current_num_threads(),
-            "resolved clips"
-        );
-
-        // 4. Parallel warp: each clip's warp runs independently on rayon threads.
-        //    rayon preserves the original z-order in the collected Vec.
-        let warped_clips: Vec<WarpedClip> = resolved
+        // Phase 1: Plan (parallel) — compute AABBs and transform classes.
+        let plan_results: Vec<Option<ClipPlan>> = resolved
             .par_iter()
             .map(|resolved_item| {
-                prepare_clip(
+                plan_clip(
                     &self.image_provider,
                     resolved_item,
                     project_file,
@@ -90,8 +113,32 @@ impl FrameRenderer for CompositorRenderer {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        // 5. Sequential composite: alpha blending requires z-order.
+        let plans: Vec<ClipPlan> = plan_results.into_iter().flatten().collect();
+
+        // Phase 2: Cull (sequential) — skip occluded clips.
+        let visible = occlusion_cull(&plans);
+        let visible_count = visible.iter().filter(|&&v| v).count();
+
+        info!(
+            clip_count = plans.len(),
+            visible_count,
+            rayon_threads = rayon::current_num_threads(),
+            "resolved clips"
+        );
+
+        // Phase 3: Warp visible clips only (parallel).
+        let warped_clips: Vec<WarpedClip> = plans
+            .into_par_iter()
+            .zip(visible)
+            .filter(|(_, v)| *v)
+            .map(|(plan, _)| warp_from_plan(&self.buffer_pool, plan))
+            .collect();
+
+        // Phase 4: Composite visible clips only (parallel bands).
         composite_clips(&mut canvas, &warped_clips);
+
+        // Phase 5: Return buffers to pool.
+        return_buffers(&self.buffer_pool, warped_clips);
 
         Ok(canvas)
     }
@@ -110,22 +157,23 @@ fn fill_background(canvas: &mut RgbaImage, viewport: &Viewport, bg: &[u8; 4]) {
     }
 }
 
-/// Prepare a single clip for compositing by loading and warping its image.
+/// Plan a clip's warp by computing placement, transform, and AABB without allocating
+/// a warp output buffer.
 ///
-/// Returns a [`WarpedClip`] containing the warped sub-buffer and its canvas offset.
-/// Returns an empty clip if the item is fully transparent.
+/// Returns `None` if the clip is fully transparent (`opacity <= 0`) or entirely
+/// off-screen (`aabb` is zero).
 ///
 /// # Errors
 ///
 /// Returns an error if the image cannot be loaded.
-#[instrument(name = "prepare_clip", skip_all, fields(item_id = %resolved.item.id))]
-fn prepare_clip(
+#[instrument(name = "plan_clip", skip_all, fields(item_id = %resolved.item.id))]
+fn plan_clip(
     image_provider: &Arc<dyn ImageProvider>,
     resolved: &ResolvedItem,
     project_file: &Path,
     viewport: &Viewport,
     project_resolution: &[u32; 2],
-) -> Result<WarpedClip, Report<CompositorError>> {
+) -> Result<Option<ClipPlan>, Report<CompositorError>> {
     // Resolve the image path.
     let image_path = match &resolved.item.content {
         ItemContent::Image { path } => resolve_path(project_file, path)
@@ -137,39 +185,19 @@ fn prepare_clip(
 
     // Skip clips that are fully transparent — warp + composite would produce no visible output.
     if resolved.opacity <= 0.0 {
-        return Ok(WarpedClip {
-            buffer: RgbaImage::new(0, 0),
-            offset: (0, 0),
-        });
+        return Ok(None);
     }
 
     // Load the source image.
-    let source_image = image_provider
+    let source = image_provider
         .get(&image_path)
         .change_context(CompositorError)
         .attach(resolved.item.id.clone())?;
 
-    let (warped, _placement) =
-        warp_resolved_clip(&source_image, resolved, project_resolution, viewport);
-
-    Ok(warped)
-}
-
-/// Warp a resolved item's source image into a bounding-box-sized buffer.
-///
-/// Combines placement computation and warping into a single function suitable
-/// for parallel execution. Returns the [`WarpedClip`] and the computed [`PlacedRect`].
-#[instrument(name = "warp_resolved_clip", skip_all)]
-fn warp_resolved_clip(
-    source_image: &RgbaImage,
-    resolved: &ResolvedItem,
-    project_resolution: &[u32; 2],
-    viewport: &Viewport,
-) -> (WarpedClip, PlacedRect) {
     // Compute base placement from sizing (in project-space).
     let placement = compute_placement(
         &resolved.item.sizing,
-        (source_image.width(), source_image.height()),
+        (source.width(), source.height()),
         (project_resolution[0], project_resolution[1]),
     );
 
@@ -183,9 +211,177 @@ fn warp_resolved_clip(
         viewport.output_size,
     );
 
-    let warped = warp_clip(source_image, &placement, resolved, viewport, viewport_scale);
+    let (canvas_w, canvas_h) = viewport.output_size;
 
-    (warped, placement)
+    let scale_x = if source.width() > 0 {
+        placement.w / source.width() as f32
+    } else {
+        1.0
+    };
+    let scale_y = if source.height() > 0 {
+        placement.h / source.height() as f32
+    } else {
+        1.0
+    };
+
+    // Pivot in canvas space (before animation transforms).
+    let pivot_x = placement.x + placement.w * resolved.item.pivot[0];
+    let pivot_y = placement.y + placement.h * resolved.item.pivot[1];
+
+    // Build the forward transform matrix: source → destination.
+    let forward = Affine3x3::scale(scale_x, scale_y)
+        .then(Affine3x3::translate(placement.x, placement.y))
+        .then(Affine3x3::translate(-pivot_x, -pivot_y))
+        .then(Affine3x3::rotate(resolved.rotation))
+        .then(Affine3x3::scale(resolved.scale.x, resolved.scale.y))
+        .then(Affine3x3::translate(pivot_x, pivot_y))
+        .then(Affine3x3::translate(
+            resolved.translate.x * viewport_scale.0,
+            resolved.translate.y * viewport_scale.1,
+        ))
+        .then(Affine3x3::translate(
+            viewport.camera_pan.0,
+            viewport.camera_pan.1,
+        ));
+
+    // Compute the bounding box of the transformed clip, clamped to canvas bounds.
+    let aabb = transformed_aabb(
+        &forward.0,
+        source.width(),
+        source.height(),
+        canvas_w,
+        canvas_h,
+    );
+
+    // Off-screen or degenerate clip — no work to do.
+    if aabb.2 == 0 || aabb.3 == 0 {
+        return Ok(None);
+    }
+
+    let transform_class = classify_transform(&forward.0);
+
+    Ok(Some(ClipPlan {
+        resolved: resolved.clone(),
+        source,
+        placement,
+        forward,
+        aabb,
+        opacity: resolved.opacity,
+        transform_class,
+        viewport_scale,
+    }))
+}
+
+/// Warp a clip from its pre-computed plan into a pooled buffer.
+///
+/// Acquires a buffer from the pool, warps into it, and returns a [`WarpedClip`]
+/// carrying the buffer and its pool receipt.
+#[instrument(name = "warp_from_plan", skip_all)]
+fn warp_from_plan(pool: &BufferPool, plan: ClipPlan) -> WarpedClip {
+    let ClipPlan {
+        resolved,
+        source,
+        forward,
+        aabb: (aabb_x, aabb_y, aabb_w, aabb_h),
+        transform_class,
+        ..
+    } = plan;
+
+    debug!(
+        aabb = %format!("{aabb_w}x{aabb_h}+{aabb_x}+{aabb_y}"),
+        source = %format!("{}x{}", source.width(), source.height()),
+        fast_path = matches!(transform_class, TransformClass::ScaleTranslate),
+        "warping clip"
+    );
+
+    // Acquire a pooled buffer for the warp output.
+    let byte_count = aabb_w as usize * aabb_h as usize * 4;
+    let pooled = pool.acquire(byte_count);
+    let (raw, receipt) = pooled.take();
+    let mut output = RgbaImage::from_raw(aabb_w, aabb_h, raw)
+        .expect("acquire returns exact-size buffer; dimensions match");
+
+    // Dispatch based on transform class.
+    match transform_class {
+        TransformClass::ScaleTranslate => {
+            warp_resize_into(&mut output, &source, &forward.0, (aabb_x, aabb_y, aabb_w, aabb_h));
+        }
+        TransformClass::General => {
+            // Existing imageproc::warp_into path for rotated/skewed clips.
+            let adjusted = Affine3x3::translate(-(aabb_x as f32), -(aabb_y as f32)).then(forward);
+            let projection = Projection::from_matrix(adjusted.0)
+                .expect("transform matrix composed of scale/translate/rotate is invertible");
+            warp_into(
+                &source,
+                &projection,
+                Interpolation::Bilinear,
+                Rgba([0u8, 0u8, 0u8, 0u8]),
+                &mut output,
+            );
+        }
+    }
+
+    // Apply opacity to alpha channel.
+    if resolved.opacity < 1.0 {
+        for pixel in output.pixels_mut() {
+            pixel.0[3] = (pixel.0[3] as f32 * resolved.opacity) as u8;
+        }
+    }
+
+    WarpedClip {
+        buffer: output,
+        offset: (aabb_x, aabb_y),
+        receipt: Some(receipt),
+    }
+}
+
+/// Determine which clips are visible after occlusion by opaque clips above them.
+///
+/// Walks plans in reverse z-order (topmost first). An opaque `ScaleTranslate` clip
+/// with a non-zero AABB becomes an occluder. A clip is culled (marked invisible) if
+/// its AABB is fully contained in any single occluder.
+///
+/// This is conservative: only `ScaleTranslate` clips are occluders (rotated AABBs
+/// have transparent corners), and only single-occluder containment is checked
+/// (union coverage is not computed). No visible clip is ever incorrectly culled.
+fn occlusion_cull(plans: &[ClipPlan]) -> Vec<bool> {
+    let mut visible = vec![true; plans.len()];
+    let mut occluders: Vec<(u32, u32, u32, u32)> = Vec::new();
+
+    for i in (0..plans.len()).rev() {
+        let plan = &plans[i];
+
+        // Defensive: zero AABB should have been filtered at plan time.
+        if plan.aabb.2 == 0 || plan.aabb.3 == 0 {
+            visible[i] = false;
+            continue;
+        }
+
+        // Check containment in any existing occluder.
+        if is_fully_contained(plan.aabb, &occluders) {
+            visible[i] = false;
+            continue;
+        }
+
+        // Add as occluder if: fully opaque AND scale+translate.
+        if plan.opacity >= 1.0 && matches!(plan.transform_class, TransformClass::ScaleTranslate) {
+            occluders.push(plan.aabb);
+        }
+    }
+
+    visible
+}
+
+/// Check if AABB `(ax, ay, aw, ah)` is fully contained within any single occluder.
+///
+/// Containment means: `ox <= ax AND oy <= ay AND ax + aw <= ox + ow AND ay + ah <= oy + oh`.
+fn is_fully_contained(
+    (ax, ay, aw, ah): (u32, u32, u32, u32),
+    occluders: &[(u32, u32, u32, u32)],
+) -> bool {
+    occluders
+        .iter()
+        .any(|&(ox, oy, ow, oh)| ox <= ax && oy <= ay && ax + aw <= ox + ow && ay + ah <= oy + oh)
 }
 
 /// A row-major 3×3 affine matrix used for bounding-box computation.
@@ -290,21 +486,25 @@ fn classify_transform(forward: &[f32; 9]) -> TransformClass {
     }
 }
 
-/// Warp a source image using SIMD-accelerated resize for scale+translate transforms.
+/// Warp a source image using SIMD-accelerated resize for scale+translate transforms,
+/// writing into a pre-allocated output buffer.
 ///
-/// Extracts the visible source region (crop box) from the AABB and forward matrix,
-/// then resizes it directly into a new buffer using `fast_image_resize`.
+/// The output buffer must be sized to `(aabb_w, aabb_h)` and will be cleared before
+/// resizing.
 ///
 /// # Arguments
 ///
+/// * `output` - Pre-allocated output buffer, sized to the AABB.
 /// * `source` - Source image.
 /// * `forward` - Forward transform matrix (must be scale+translate).
-/// * `aabb` - The `(x, y, w, h)` bounding box clamped to canvas.
-fn warp_resize(
+/// * `aabb` - The `(x, y, w, h)` bounding box clamped to canvas. Only `x` and `y` are
+///   used to compute the crop box; the output size is determined by the buffer dimensions.
+fn warp_resize_into(
+    output: &mut RgbaImage,
     source: &RgbaImage,
     forward: &[f32; 9],
     (aabb_x, aabb_y, aabb_w, aabb_h): (u32, u32, u32, u32),
-) -> RgbaImage {
+) {
     let sx = forward[0] as f64;
     let sy = forward[4] as f64;
     let tx = forward[2] as f64;
@@ -329,12 +529,19 @@ fn warp_resize(
     let clamped_width = clamped_right - clamped_left;
     let clamped_height = clamped_bottom - clamped_top;
 
-    // If the clamped crop has zero area, return a transparent buffer.
+    // If the clamped crop has zero area, fill output with transparent pixels.
     if clamped_width <= 0.0 || clamped_height <= 0.0 {
-        return RgbaImage::new(aabb_w, aabb_h);
+        for pixel in output.pixels_mut() {
+            *pixel = Rgba([0, 0, 0, 0]);
+        }
+        return;
     }
 
-    let mut output = RgbaImage::new(aabb_w, aabb_h);
+    // Clear output to transparent before resizing (fast_image_resize may not write all
+    // pixels if the crop box is smaller than the output).
+    for pixel in output.pixels_mut() {
+        *pixel = Rgba([0, 0, 0, 0]);
+    }
 
     let mut resizer = fast_image_resize::Resizer::new();
     let options = fast_image_resize::ResizeOptions::new()
@@ -346,133 +553,35 @@ fn warp_resize(
     // RgbaImage implements IntoImageView/IntoImageViewMut via fast_image_resize's
     // "image" feature — no data conversion needed.
     resizer
-        .resize(source, &mut output, &options)
+        .resize(source, output, &options)
         .expect("crop box is clamped to source bounds; pixel types match");
-
-    output
 }
 
-/// Result of warping a clip: a bounding-box-sized sub-buffer and its (x, y) offset on the canvas.
+/// Result of warping a clip: a bounding-box-sized sub-buffer, its (x, y) offset on the
+/// canvas, and an optional receipt for returning the buffer to the pool.
 struct WarpedClip {
     /// The warped pixel data, sized to the bounding box.
     buffer: RgbaImage,
     /// Top-left corner of the bounding box on the canvas.
     offset: (u32, u32),
+    /// Receipt for returning the buffer to the pool after compositing.
+    /// `None` in tests (non-pooled buffers).
+    receipt: Option<PooledBuffer<buffer_pool::Empty>>,
 }
 
-/// Warp a source image into a bounding-box-sized buffer using the full transform pipeline.
+/// Return all pooled buffers from warped clips back to the pool.
 ///
-/// Instead of allocating a full-canvas buffer, computes the axis-aligned bounding box
-/// of the transformed clip and warps only into that region. Returns the sub-buffer and
-/// its offset on the canvas.
-///
-/// The transform pipeline maps source pixels to their destination position on the canvas:
-/// 1. Scale source to placement size
-/// 2. Translate to placement position
-/// 3. Rotate and scale around pivot (animation)
-/// 4. Translate by animation offset
-/// 5. Apply camera pan
-#[instrument(name = "warp_clip", skip_all)]
-fn warp_clip(
-    source: &RgbaImage,
-    placement: &crate::sizing::PlacedRect,
-    resolved: &ss_core::transform::ResolvedItem,
-    viewport: &Viewport,
-    viewport_scale: (f32, f32),
-) -> WarpedClip {
-    let (canvas_w, canvas_h) = viewport.output_size;
-
-    let scale_x = if source.width() > 0 {
-        placement.w / source.width() as f32
-    } else {
-        1.0
-    };
-    let scale_y = if source.height() > 0 {
-        placement.h / source.height() as f32
-    } else {
-        1.0
-    };
-
-    // Pivot in canvas space (before animation transforms).
-    let pivot_x = placement.x + placement.w * resolved.item.pivot[0];
-    let pivot_y = placement.y + placement.h * resolved.item.pivot[1];
-
-    // Build the forward transform matrix: source → destination.
-    let forward = Affine3x3::scale(scale_x, scale_y)
-        .then(Affine3x3::translate(placement.x, placement.y))
-        .then(Affine3x3::translate(-pivot_x, -pivot_y))
-        .then(Affine3x3::rotate(resolved.rotation))
-        .then(Affine3x3::scale(resolved.scale.x, resolved.scale.y))
-        .then(Affine3x3::translate(pivot_x, pivot_y))
-        .then(Affine3x3::translate(
-            resolved.translate.x * viewport_scale.0,
-            resolved.translate.y * viewport_scale.1,
-        ))
-        .then(Affine3x3::translate(
-            viewport.camera_pan.0,
-            viewport.camera_pan.1,
-        ));
-
-    // Compute the bounding box of the transformed clip, clamped to canvas bounds.
-    let (aabb_x, aabb_y, aabb_w, aabb_h) = transformed_aabb(
-        &forward.0,
-        source.width(),
-        source.height(),
-        canvas_w,
-        canvas_h,
-    );
-
-    // Off-screen or degenerate clip — no work to do.
-    if aabb_w == 0 || aabb_h == 0 {
-        debug!("clip off-screen, aabb is zero");
-        return WarpedClip {
-            buffer: RgbaImage::new(0, 0),
-            offset: (0, 0),
-        };
-    }
-
-    let transform_class = classify_transform(&forward.0);
-
-    info!(
-        aabb = %format!("{aabb_w}x{aabb_h}+{aabb_x}+{aabb_y}"),
-        source = %format!("{}x{}", source.width(), source.height()),
-        fast_path = matches!(transform_class, TransformClass::ScaleTranslate),
-        "warping clip"
-    );
-
-    // Dispatch based on transform class.
-    let mut output = match transform_class {
-        TransformClass::ScaleTranslate => {
-            warp_resize(source, &forward.0, (aabb_x, aabb_y, aabb_w, aabb_h))
+/// Clips without receipts (tests) are skipped. If a buffer size has changed
+/// (should not happen in practice), the buffer is silently dropped.
+fn return_buffers(pool: &BufferPool, clips: Vec<WarpedClip>) {
+    for clip in clips {
+        if let Some(receipt) = clip.receipt {
+            let raw = clip.buffer.into_raw();
+            match receipt.replace(raw) {
+                Ok(ready) => pool.release(ready),
+                Err(_) => {} // wrong size — dropped
+            }
         }
-        TransformClass::General => {
-            // Existing imageproc::warp_into path for rotated/skewed clips.
-            let adjusted =
-                Affine3x3::translate(-(aabb_x as f32), -(aabb_y as f32)).then(forward);
-            let projection = Projection::from_matrix(adjusted.0)
-                .expect("transform matrix composed of scale/translate/rotate is invertible");
-            let mut buf = RgbaImage::from_pixel(aabb_w, aabb_h, Rgba([0, 0, 0, 0]));
-            warp_into(
-                source,
-                &projection,
-                Interpolation::Bilinear,
-                Rgba([0u8, 0u8, 0u8, 0u8]),
-                &mut buf,
-            );
-            buf
-        }
-    };
-
-    // Apply opacity to alpha channel.
-    if resolved.opacity < 1.0 {
-        for pixel in output.pixels_mut() {
-            pixel.0[3] = (pixel.0[3] as f32 * resolved.opacity) as u8;
-        }
-    }
-
-    WarpedClip {
-        buffer: output,
-        offset: (aabb_x, aabb_y),
     }
 }
 
@@ -651,22 +760,14 @@ fn composite_onto_band(
                 continue;
             }
 
-            let out_r = (layer_pixel.0[0] as f32 * la
-                + canvas_pixel.0[0] as f32 * ca * (1.0 - la))
-                / out_a;
-            let out_g = (layer_pixel.0[1] as f32 * la
-                + canvas_pixel.0[1] as f32 * ca * (1.0 - la))
-                / out_a;
-            let out_b = (layer_pixel.0[2] as f32 * la
-                + canvas_pixel.0[2] as f32 * ca * (1.0 - la))
-                / out_a;
+            let out_r =
+                (layer_pixel.0[0] as f32 * la + canvas_pixel.0[0] as f32 * ca * (1.0 - la)) / out_a;
+            let out_g =
+                (layer_pixel.0[1] as f32 * la + canvas_pixel.0[1] as f32 * ca * (1.0 - la)) / out_a;
+            let out_b =
+                (layer_pixel.0[2] as f32 * la + canvas_pixel.0[2] as f32 * ca * (1.0 - la)) / out_a;
 
-            *canvas_pixel = Rgba([
-                out_r as u8,
-                out_g as u8,
-                out_b as u8,
-                (out_a * 255.0) as u8,
-            ]);
+            *canvas_pixel = Rgba([out_r as u8, out_g as u8, out_b as u8, (out_a * 255.0) as u8]);
         }
     }
 }
@@ -899,12 +1000,14 @@ mod tests {
         let clip1 = WarpedClip {
             buffer: RgbaImage::from_pixel(4, 4, Rgba([255, 0, 0, 180])),
             offset: (2, 2),
+            receipt: None,
         };
 
         // Clip 2: semi-transparent blue at (4, 4) — overlaps clip 1.
         let clip2 = WarpedClip {
             buffer: RgbaImage::from_pixel(4, 4, Rgba([0, 0, 255, 200])),
             offset: (4, 4),
+            receipt: None,
         };
 
         let clips = vec![clip1, clip2];
@@ -931,14 +1034,17 @@ mod tests {
             WarpedClip {
                 buffer: RgbaImage::new(0, 0),
                 offset: (0, 0),
+                receipt: None,
             },
             WarpedClip {
                 buffer: RgbaImage::from_pixel(2, 2, Rgba([255, 255, 255, 128])),
                 offset: (2, 2),
+                receipt: None,
             },
             WarpedClip {
                 buffer: RgbaImage::new(0, 0),
                 offset: (0, 0),
+                receipt: None,
             },
         ];
 
@@ -1002,6 +1108,162 @@ mod tests {
         assert!(matches!(result, TransformClass::General));
     }
 
+    // --- occlusion_cull tests ---
+
+    fn test_plan(
+        aabb: (u32, u32, u32, u32),
+        opacity: f32,
+        transform_class: TransformClass,
+    ) -> ClipPlan {
+        ClipPlan {
+            resolved: ResolvedItem {
+                item: ss_core::test_utils::fixtures::build_image_item(
+                    "test", "test.png", 0.0, 10.0,
+                ),
+                translate: euclid::vec2(0.0, 0.0),
+                scale: euclid::vec2(1.0, 1.0),
+                rotation: 0.0,
+                opacity,
+                z_path: vec![0],
+            },
+            source: Arc::new(RgbaImage::new(1, 1)),
+            placement: PlacedRect {
+                x: 0.0,
+                y: 0.0,
+                w: 1920.0,
+                h: 1080.0,
+            },
+            forward: Affine3x3::scale(1.0, 1.0),
+            aabb,
+            opacity,
+            transform_class,
+            viewport_scale: (1.0, 1.0),
+        }
+    }
+
+    #[test]
+    fn occlusion_cull_fully_occluded_clip_is_culled() {
+        // Given two plans sorted by z ascending:
+        //   plan[0]: bottom, AABB (0,0,1920,1080), opaque, ScaleTranslate
+        //   plan[1]: top, AABB (0,0,1920,1080), opaque, ScaleTranslate
+        let plans = vec![
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+        ];
+
+        // When calling occlusion_cull.
+        let visible = occlusion_cull(&plans);
+
+        // Then plan[0] is culled (false), plan[1] is visible (true).
+        assert!(!visible[0], "bottom clip should be culled");
+        assert!(visible[1], "top clip should be visible");
+    }
+
+    #[test]
+    fn occlusion_cull_partially_visible_clip_is_not_culled() {
+        // Given two plans:
+        //   plan[0]: bottom, AABB (0,0,1920,1080), opaque, ScaleTranslate
+        //   plan[1]: top, AABB (0,0,960,1080), opaque, ScaleTranslate (covers left half)
+        let plans = vec![
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+            test_plan((0, 0, 960, 1080), 1.0, TransformClass::ScaleTranslate),
+        ];
+
+        // When calling occlusion_cull.
+        let visible = occlusion_cull(&plans);
+
+        // Then both are visible — bottom clip extends beyond the occluder.
+        assert!(
+            visible[0],
+            "bottom clip should be visible (extends beyond occluder)"
+        );
+        assert!(visible[1], "top clip should be visible");
+    }
+
+    #[test]
+    fn occlusion_cull_rotated_clip_is_not_occluder() {
+        // Given two plans:
+        //   plan[0]: bottom, AABB (0,0,1920,1080), opaque, ScaleTranslate
+        //   plan[1]: top, AABB (0,0,1920,1080), opaque, General (rotated)
+        let plans = vec![
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::General),
+        ];
+
+        // When calling occlusion_cull.
+        let visible = occlusion_cull(&plans);
+
+        // Then both are visible — rotated clip is not an occluder.
+        assert!(
+            visible[0],
+            "bottom clip should be visible (rotated clip is not occluder)"
+        );
+        assert!(visible[1], "top clip should be visible");
+    }
+
+    #[test]
+    fn occlusion_cull_semi_transparent_clip_is_not_occluder() {
+        // Given two plans:
+        //   plan[0]: bottom, AABB (0,0,1920,1080), opacity=1.0, ScaleTranslate
+        //   plan[1]: top, AABB (0,0,1920,1080), opacity=0.5, ScaleTranslate
+        let plans = vec![
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+            test_plan((0, 0, 1920, 1080), 0.5, TransformClass::ScaleTranslate),
+        ];
+
+        // When calling occlusion_cull.
+        let visible = occlusion_cull(&plans);
+
+        // Then both are visible — semi-transparent clip is not an occluder.
+        assert!(
+            visible[0],
+            "bottom clip should be visible (semi-transparent clip is not occluder)"
+        );
+        assert!(visible[1], "top clip should be visible");
+    }
+
+    #[test]
+    fn occlusion_cull_zero_aabb_is_culled() {
+        // Given two plans:
+        //   plan[0]: bottom, AABB (0,0,0,0), opaque, ScaleTranslate
+        //   plan[1]: top, AABB (0,0,1920,1080), opaque, ScaleTranslate
+        let plans = vec![
+            test_plan((0, 0, 0, 0), 1.0, TransformClass::ScaleTranslate),
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+        ];
+
+        // When calling occlusion_cull.
+        let visible = occlusion_cull(&plans);
+
+        // Then plan[0] is culled, plan[1] is visible.
+        assert!(!visible[0], "zero AABB clip should be culled");
+        assert!(visible[1], "top clip should be visible");
+    }
+
+    #[test]
+    fn occlusion_cull_single_occluder_check_no_union() {
+        // Given three plans:
+        //   plan[0]: bottom, AABB (0,0,1920,1080), opaque, ScaleTranslate
+        //   plan[1]: middle, AABB (0,0,960,1080), opaque, ScaleTranslate (left half)
+        //   plan[2]: top, AABB (960,0,960,1080), opaque, ScaleTranslate (right half)
+        let plans = vec![
+            test_plan((0, 0, 1920, 1080), 1.0, TransformClass::ScaleTranslate),
+            test_plan((0, 0, 960, 1080), 1.0, TransformClass::ScaleTranslate),
+            test_plan((960, 0, 960, 1080), 1.0, TransformClass::ScaleTranslate),
+        ];
+
+        // When calling occlusion_cull.
+        let visible = occlusion_cull(&plans);
+
+        // Then plan[0] is visible — neither occluder alone fully contains it.
+        assert!(
+            visible[0],
+            "bottom clip should be visible (no single occluder fully contains it)"
+        );
+        assert!(visible[1], "middle clip should be visible");
+        assert!(visible[2], "top clip should be visible");
+    }
+
     // --- warp_resize vs warp_into correctness test ---
 
     #[test]
@@ -1019,11 +1281,12 @@ mod tests {
         let aabb = (10u32, 20u32, 150u32, 150u32);
 
         // When using the fast resize path.
-        let fast_result = warp_resize(&source, &forward, aabb);
+        let mut fast_result = RgbaImage::new(aabb.2, aabb.3);
+        warp_resize_into(&mut fast_result, &source, &forward, aabb);
 
         // And using the general warp_into path.
-        let adjusted = Affine3x3::translate(-(aabb.0 as f32), -(aabb.1 as f32))
-            .then(Affine3x3(forward));
+        let adjusted =
+            Affine3x3::translate(-(aabb.0 as f32), -(aabb.1 as f32)).then(Affine3x3(forward));
         let projection = Projection::from_matrix(adjusted.0).unwrap();
         let mut general_buf = RgbaImage::from_pixel(aabb.2, aabb.3, Rgba([0, 0, 0, 0]));
         warp_into(
