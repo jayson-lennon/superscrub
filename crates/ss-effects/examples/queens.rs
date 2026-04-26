@@ -120,22 +120,39 @@ fn build_ken_burns() -> Vec<ClipBuilder> {
     let segment_time = HOLD + FADE;
     let num_segments = ((DURATION / segment_time).ceil() as usize).max(1);
 
+    // zoom_start > 1.0 ensures the image is always larger than the frame,
+    // so panning never reveals edges. For a pan_fraction of 0.2, the minimum
+    // safe zoom is 1.0 + 2*0.2 = 1.4. We use 1.4 start → 2.0 end for drama.
     let kb_params = KenBurnsParams::builder()
         .duration(DURATION)
         .resolution(RESOLUTION)
         .default_hold_duration(HOLD)
         .default_fade_duration(FADE)
-        .default_pan_fraction(0.15)
-        .default_zoom_end(1.25)
+        .default_zoom_start(1.4)
+        .default_zoom_end(2.0)
+        .default_pan_fraction(0.2)
         .build();
 
     let mut builder = KenBurnsBuilder::new(kb_params);
     for i in 0..num_segments {
         let direction = DIRECTIONS[i % DIRECTIONS.len()].clone();
-        let segment = KenBurnsSegmentParams::builder()
-            .image_path(BACKGROUND)
-            .direction(direction)
-            .build();
+
+        let segment = if i == 0 {
+            // Make the first segment extra dramatic with a wider zoom range.
+            KenBurnsSegmentParams::builder()
+                .image_path(BACKGROUND)
+                .direction(direction)
+                .zoom_start(1.2)
+                .zoom_end(3.5)
+                .pan_fraction(0.35)
+                .build()
+        } else {
+            KenBurnsSegmentParams::builder()
+                .image_path(BACKGROUND)
+                .direction(direction)
+                .build()
+        };
+
         builder = builder.add_segment(segment);
     }
 
