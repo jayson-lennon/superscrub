@@ -16,7 +16,7 @@ use error_stack::{Report, ResultExt};
 use image::{Rgba, RgbaImage};
 use imageproc::geometric_transformations::{Interpolation, Projection, warp_into};
 use rayon::prelude::*;
-use tracing::{debug, info, instrument};
+use tracing::{debug, instrument};
 
 use ss_core::interpolation::resolve_items;
 use ss_core::item::ItemContent;
@@ -117,14 +117,7 @@ impl FrameRenderer for CompositorRenderer {
 
         // Phase 2: Cull (sequential) — skip occluded clips.
         let visible = occlusion_cull(&plans);
-        let visible_count = visible.iter().filter(|&&v| v).count();
-
-        info!(
-            clip_count = plans.len(),
-            visible_count,
-            rayon_threads = rayon::current_num_threads(),
-            "resolved clips"
-        );
+        let _visible_count = visible.iter().filter(|&&v| v).count();
 
         // Phase 3: Warp visible clips only (parallel).
         let warped_clips: Vec<WarpedClip> = plans

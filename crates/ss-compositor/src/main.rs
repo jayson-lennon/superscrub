@@ -11,7 +11,6 @@ use ss_core::project::Project;
 fn main() {
     tracing_subscriber::fmt()
         .with_target(true)
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .init();
     let args: Vec<String> = std::env::args().collect();
 

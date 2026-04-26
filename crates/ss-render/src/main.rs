@@ -41,7 +41,6 @@ struct Cli {
 fn main() {
     tracing_subscriber::fmt()
         .with_target(true)
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .init();
     if let Err(e) = run() {
         eprintln!("Error: {e:?}");
