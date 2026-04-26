@@ -82,6 +82,8 @@ pub fn render_audio(
             sample_rate: decoded.sample_rate,
             start_time: adjusted_start,
             volume: clip_def.volume,
+            source_offset: clip_def.source_offset,
+            trim_end: clip_def.trim_end,
         });
     }
 

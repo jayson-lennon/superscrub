@@ -13,3 +13,7 @@ examples/effects/
 # Code analysis
 coverage.lcov
 debt.json
+
+# projects
+projects/
+project/

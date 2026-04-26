@@ -569,6 +569,8 @@ mod tests {
             start_time: 0.0,
             end_time: 10.0,
             volume,
+            source_offset: 0.0,
+            trim_end: 0.0,
         }
     }
 

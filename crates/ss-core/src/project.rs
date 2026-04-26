@@ -130,6 +130,15 @@ pub struct AudioClipDef {
     /// Volume level [0.0, 1.0]. Default: 1.0.
     #[serde(default = "default_volume")]
     pub volume: f32,
+    /// Offset into the source audio file where playback begins (seconds).
+    /// Default: 0.0 (play from the start of the source file).
+    #[serde(default)]
+    pub source_offset: f64,
+    /// Offset into the source audio file where playback ends (seconds).
+    /// A value of 0.0 means play to the end of the source file.
+    /// Default: 0.0.
+    #[serde(default)]
+    pub trim_end: f64,
 }
 
 fn default_volume() -> f32 {
@@ -187,6 +196,8 @@ impl<'de> serde::Deserialize<'de> for Project {
                         start_time: a.start_time,
                         end_time: inner.duration.as_secs_f64(),
                         volume: 1.0,
+                        source_offset: 0.0,
+                        trim_end: 0.0,
                     }]
                 })
                 .unwrap_or_default()
@@ -881,6 +892,78 @@ mod tests {
         // Then items is used (not clips).
         assert_eq!(project.items.len(), 1);
         assert_eq!(project.items[0].id, "new");
+    }
+
+    #[test]
+    fn audio_clip_def_defaults_source_offset_and_trim_end_to_zero() {
+        // Given an audio clip JSON without source_offset or trim_end.
+        let json = r#"{
+            "id": "bg",
+            "path": "song.mp3",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 30.0
+        }"#;
+
+        // When parsing it.
+        let clip: super::AudioClipDef = serde_json::from_str(json).expect("should parse");
+
+        // Then source_offset and trim_end default to 0.0.
+        assert!((clip.source_offset - 0.0).abs() < 1e-5);
+        assert!((clip.trim_end - 0.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn audio_clip_def_explicit_source_offset_and_trim_end_round_trip() {
+        // Given an audio clip JSON with explicit source_offset and trim_end.
+        let json = r#"{
+            "id": "bg",
+            "path": "song.mp3",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 30.0,
+            "source_offset": 15.0,
+            "trim_end": 45.0
+        }"#;
+
+        // When parsing and re-serializing.
+        let clip: super::AudioClipDef = serde_json::from_str(json).expect("should parse");
+        let round_json = serde_json::to_string(&clip).unwrap();
+        let back: super::AudioClipDef = serde_json::from_str(&round_json).unwrap();
+
+        // Then both values survive the round-trip.
+        assert!((back.source_offset - 15.0).abs() < 1e-5);
+        assert!((back.trim_end - 45.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn project_preserves_audio_clip_source_offset_and_trim_end() {
+        // Given a project JSON with audio clips that have explicit source_offset and trim_end.
+        let json = r#"{
+            "resolution": [1920, 1080],
+            "fps": 60,
+            "duration": 30.0,
+            "output": "out.mp4",
+            "audio_clips": [{
+                "id": "chorus",
+                "path": "song.mp3",
+                "track": 0,
+                "start_time": 0.0,
+                "end_time": 30.0,
+                "source_offset": 60.0,
+                "trim_end": 90.0
+            }],
+            "items": []
+        }"#;
+
+        // When serializing and deserializing.
+        let project: Project = serde_json::from_str(json).expect("should parse");
+        let out_json = serde_json::to_string(&project).unwrap();
+        let back: Project = serde_json::from_str(&out_json).unwrap();
+
+        // Then the new field values are preserved.
+        assert!((back.audio_clips[0].source_offset - 60.0).abs() < 1e-5);
+        assert!((back.audio_clips[0].trim_end - 90.0).abs() < 1e-5);
     }
 
     #[test]

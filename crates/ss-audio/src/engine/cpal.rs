@@ -129,16 +129,24 @@ fn audio_callback(output: &mut [f32], state: &SharedState) {
         let sample_rate = clip.audio.sample_rate as f64;
         let channels = clip.audio.channels as usize;
 
-        // Time offset within this clip's timeline.
-        let clip_offset_secs = pos_secs - clip.start_time;
+        // Time offset within this clip's timeline, including source offset.
+        let clip_offset_secs = pos_secs - clip.start_time + clip.source_offset;
         let sample_offset = (clip_offset_secs * sample_rate * channels as f64) as usize;
 
         let samples = &clip.audio.samples;
-        if sample_offset >= samples.len() {
-            continue; // This clip's samples are exhausted.
+
+        // Compute the upper bound on samples to read.
+        let max_source_samples = if clip.trim_end > 0.0 {
+            ((clip.trim_end * sample_rate * channels as f64) as usize).min(samples.len())
+        } else {
+            samples.len()
+        };
+
+        if sample_offset >= max_source_samples {
+            continue; // Past the trim point or source exhausted.
         }
 
-        let available = (samples.len() - sample_offset).min(output.len());
+        let available = (max_source_samples - sample_offset).min(output.len());
         let clip_volume = clip.volume * master_volume;
 
         // Mix (add) into output buffer.
@@ -266,6 +274,8 @@ impl AudioEngine for CpalAudioEngine {
             start_time: 0.0,
             end_time: duration.as_secs_f64(),
             volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
         };
 
         {
@@ -292,6 +302,8 @@ impl AudioEngine for CpalAudioEngine {
                 start_time: info.start_time,
                 end_time: info.end_time,
                 volume: info.volume,
+                source_offset: info.source_offset,
+                trim_end: info.trim_end,
             });
         }
 
@@ -391,6 +403,8 @@ mod tests {
             start_time,
             end_time,
             volume,
+            source_offset: 0.0,
+            trim_end: 0.0,
         }
     }
 
@@ -722,6 +736,8 @@ mod tests {
             start_time: 0.0,
             end_time: decoded.duration.as_secs_f64(),
             volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
         };
         *state.clips.write() = vec![clip];
         state.playing.store(true, Ordering::Relaxed);
@@ -732,6 +748,129 @@ mod tests {
 
         // Then the output matches the raw samples (same as old single-clip path).
         assert_eq!(&output[..], &samples[..256]);
+    }
+
+    #[test]
+    fn callback_source_offset_skips_into_source() {
+        // Given a clip with source_offset=0.5s at 10 Hz mono.
+        // Source samples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+        // source_offset=0.5s at 10 Hz mono = skip 5 samples.
+        let samples: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        let decoded = make_decoded_audio(samples.clone(), 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.5, // skip first 5 samples
+            trim_end: 0.0,
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 5];
+
+        // When the audio callback is invoked at position 0.0.
+        audio_callback(&mut output, &state);
+
+        // Then output contains samples 5-9 from the source (skipped first 5).
+        assert_eq!(output[0], 5.0);
+        assert_eq!(output[1], 6.0);
+        assert_eq!(output[2], 7.0);
+        assert_eq!(output[3], 8.0);
+        assert_eq!(output[4], 9.0);
+    }
+
+    #[test]
+    fn callback_trim_end_stops_before_source_end() {
+        // Given a clip with trim_end=0.5s at 10 Hz mono.
+        // Source samples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+        // trim_end=0.5s at 10 Hz mono = only first 5 samples are playable.
+        let samples: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        let decoded = make_decoded_audio(samples.clone(), 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.5, // only first 5 samples
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 10];
+
+        // When the audio callback is invoked at position 0.0.
+        audio_callback(&mut output, &state);
+
+        // Then output has the first 5 samples, then silence.
+        assert_eq!(output[0], 0.0);
+        assert_eq!(output[1], 1.0);
+        assert_eq!(output[2], 2.0);
+        assert_eq!(output[3], 3.0);
+        assert_eq!(output[4], 4.0);
+        assert!(output[5..].iter().all(|&s| s == 0.0));
+    }
+
+    #[test]
+    fn callback_source_offset_with_trim_end_selects_window() {
+        // Given a clip with source_offset=0.2s, trim_end=0.7s at 10 Hz mono.
+        // Source samples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+        // source_offset=0.2s → start at sample 2
+        // trim_end=0.7s → stop at sample 7
+        // Playable range: samples 2..7 = [2.0, 3.0, 4.0, 5.0, 6.0]
+        let samples: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        let decoded = make_decoded_audio(samples.clone(), 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.2,
+            trim_end: 0.7,
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 10];
+
+        // When the audio callback is invoked at position 0.0.
+        audio_callback(&mut output, &state);
+
+        // Then output has the 5 samples from the window, then silence.
+        assert_eq!(output[0], 2.0);
+        assert_eq!(output[1], 3.0);
+        assert_eq!(output[2], 4.0);
+        assert_eq!(output[3], 5.0);
+        assert_eq!(output[4], 6.0);
+        assert!(output[5..].iter().all(|&s| s == 0.0));
+    }
+
+    #[test]
+    fn callback_source_offset_past_trim_end_produces_silence() {
+        // Given a clip with source_offset=0.8s, trim_end=0.5s at 10 Hz mono.
+        // source_start = 8, source_end = 5 → source_start >= source_end → nothing to play.
+        let samples: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.8,
+            trim_end: 0.5,
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![1.0f32; 10];
+
+        // When the audio callback is invoked.
+        audio_callback(&mut output, &state);
+
+        // Then the clip contributes nothing (silence after the fill).
+        assert!(output.iter().all(|&s| s == 0.0));
     }
 
     #[test]

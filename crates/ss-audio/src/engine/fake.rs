@@ -405,6 +405,8 @@ mod tests {
             start_time: 0.0,
             end_time: 10.0,
             volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
         }];
 
         // When calling load_clips().
@@ -424,12 +426,16 @@ mod tests {
                 start_time: 0.0,
                 end_time: 10.0,
                 volume: 0.8,
+                source_offset: 0.0,
+                trim_end: 0.0,
             },
             crate::engine::AudioClipInfo {
                 path: std::path::PathBuf::from("b.wav"),
                 start_time: 5.0,
                 end_time: 15.0,
                 volume: 0.5,
+                source_offset: 0.0,
+                trim_end: 0.0,
             },
         ];
 
@@ -453,12 +459,16 @@ mod tests {
                 start_time: 0.0,
                 end_time: 10.0,
                 volume: 1.0,
+                source_offset: 0.0,
+                trim_end: 0.0,
             },
             crate::engine::AudioClipInfo {
                 path: std::path::PathBuf::from("b.wav"),
                 start_time: 5.0,
                 end_time: 20.0,
                 volume: 1.0,
+                source_offset: 0.0,
+                trim_end: 0.0,
             },
         ];
 

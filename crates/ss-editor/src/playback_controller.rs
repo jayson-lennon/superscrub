@@ -193,6 +193,8 @@ impl PlaybackController {
                     start_time: clip.start_time,
                     end_time: clip.end_time,
                     volume: clip.volume,
+                    source_offset: clip.source_offset,
+                    trim_end: clip.trim_end,
                 })
             })
             .collect::<Result<Vec<AudioClipInfo>, _>>()?;

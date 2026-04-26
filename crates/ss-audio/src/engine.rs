@@ -24,6 +24,12 @@ pub struct AudioClipInfo {
     pub end_time: f64,
     /// Per-clip volume level [0.0, 1.0].
     pub volume: f32,
+    /// Offset into the source audio where playback begins (seconds).
+    /// 0.0 means play from the start of the source file.
+    pub source_offset: f64,
+    /// Offset into the source audio where playback ends (seconds).
+    /// 0.0 means play to the end of the source file.
+    pub trim_end: f64,
 }
 
 /// A decoded audio clip ready for mixing.
@@ -40,6 +46,12 @@ pub struct LoadedAudioClip {
     pub end_time: f64,
     /// Per-clip volume level [0.0, 1.0].
     pub volume: f32,
+    /// Offset into the source audio where playback begins (seconds).
+    /// 0.0 means play from the start of the source file.
+    pub source_offset: f64,
+    /// Offset into the source audio where playback ends (seconds).
+    /// 0.0 means play to the end of the source file.
+    pub trim_end: f64,
 }
 
 /// Failed to perform an audio operation.

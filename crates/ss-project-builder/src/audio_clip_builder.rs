@@ -96,6 +96,8 @@ impl AudioClipBuilder {
             start_time: self.params.start_time,
             end_time: self.params.end_time,
             volume: self.params.volume,
+            source_offset: 0.0,
+            trim_end: 0.0,
         })
     }
 }

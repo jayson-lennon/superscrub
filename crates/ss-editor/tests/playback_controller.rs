@@ -46,6 +46,8 @@ fn load_project_with_audio(controller: &mut PlaybackController) {
         start_time: 0.0,
         end_time: 10.0,
         volume: 1.0,
+        source_offset: 0.0,
+        trim_end: 0.0,
     });
     controller.state_mut().load_project(
         project,
@@ -62,6 +64,8 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
         start_time: 0.0,
         end_time: 10.0,
         volume: 1.0,
+        source_offset: 0.0,
+        trim_end: 0.0,
     });
     project.audio_clips.push(ss_core::project::AudioClipDef {
         id: "audio2".to_string(),
@@ -70,6 +74,8 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
         start_time: 5.0,
         end_time: 15.0,
         volume: 0.8,
+        source_offset: 0.0,
+        trim_end: 0.0,
     });
     controller.state_mut().load_project(
         project,
