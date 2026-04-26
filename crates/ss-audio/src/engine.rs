@@ -30,6 +30,8 @@ pub struct AudioClipInfo {
     /// Offset into the source audio where playback ends (seconds).
     /// 0.0 means play to the end of the source file.
     pub trim_end: f64,
+    /// Audio animation tracks (volume automation).
+    pub animations: Vec<ss_core::animation::AudioAnimationTrack>,
 }
 
 /// A decoded audio clip ready for mixing.
@@ -52,6 +54,8 @@ pub struct LoadedAudioClip {
     /// Offset into the source audio where playback ends (seconds).
     /// 0.0 means play to the end of the source file.
     pub trim_end: f64,
+    /// Audio animation tracks (volume automation).
+    pub animations: Vec<ss_core::animation::AudioAnimationTrack>,
 }
 
 /// Failed to perform an audio operation.

@@ -195,6 +195,7 @@ impl PlaybackController {
                     volume: clip.volume,
                     source_offset: clip.source_offset,
                     trim_end: clip.trim_end,
+                    animations: clip.animations.clone(),
                 })
             })
             .collect::<Result<Vec<AudioClipInfo>, _>>()?;

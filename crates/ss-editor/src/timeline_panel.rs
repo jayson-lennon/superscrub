@@ -571,6 +571,7 @@ mod tests {
             volume,
             source_offset: 0.0,
             trim_end: 0.0,
+            animations: vec![],
         }
     }
 

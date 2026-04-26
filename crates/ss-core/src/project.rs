@@ -139,6 +139,9 @@ pub struct AudioClipDef {
     /// Default: 0.0.
     #[serde(default)]
     pub trim_end: f64,
+    /// Audio animation tracks (volume automation, etc.).
+    #[serde(default)]
+    pub animations: Vec<crate::animation::AudioAnimationTrack>,
 }
 
 fn default_volume() -> f32 {
@@ -198,6 +201,7 @@ impl<'de> serde::Deserialize<'de> for Project {
                         volume: 1.0,
                         source_offset: 0.0,
                         trim_end: 0.0,
+                        animations: vec![],
                     }]
                 })
                 .unwrap_or_default()
@@ -1008,5 +1012,173 @@ mod tests {
         assert!(
             matches!(&back.items[0].content, ItemContent::Group { children } if children.len() == 1)
         );
+    }
+
+    // ============================================================
+    // Audio animation tests
+    // ============================================================
+
+    #[test]
+    fn audio_clip_def_deserializes_with_empty_animations() {
+        // Given an audio clip JSON without the animations field.
+        let json = r#"{
+            "id": "bg",
+            "path": "song.mp3",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 30.0
+        }"#;
+
+        // When parsing it.
+        let clip: super::AudioClipDef = serde_json::from_str(json).expect("should parse");
+
+        // Then animations defaults to an empty vec.
+        assert!(clip.animations.is_empty());
+    }
+
+    #[test]
+    fn audio_clip_def_with_volume_animation_roundtrips() {
+        // Given an audio clip JSON with one volume animation track.
+        let json = r#"{
+            "id": "bg",
+            "path": "song.mp3",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 30.0,
+            "animations": [
+                {
+                    "property": "volume",
+                    "keyframes": [
+                        {"time": 0.0, "value": 0.0, "easing": "Linear"},
+                        {"time": 2.0, "value": 1.0, "easing": "Linear"}
+                    ]
+                }
+            ]
+        }"#;
+
+        // When round-tripping through serde.
+        let clip: super::AudioClipDef = serde_json::from_str(json).expect("should parse");
+        let round_json = serde_json::to_string(&clip).unwrap();
+        let back: super::AudioClipDef = serde_json::from_str(&round_json).unwrap();
+
+        // Then the animation track is preserved.
+        assert_eq!(back.animations.len(), 1);
+        assert_eq!(
+            back.animations[0].property,
+            crate::animation::AudioAnimatableProperty::Volume
+        );
+        assert_eq!(back.animations[0].keyframes.len(), 2);
+        assert!((back.animations[0].keyframes[0].time - 0.0).abs() < 1e-5);
+        assert!((back.animations[0].keyframes[0].value - 0.0).abs() < 1e-5);
+        assert!((back.animations[0].keyframes[1].time - 2.0).abs() < 1e-5);
+        assert!((back.animations[0].keyframes[1].value - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn audio_clip_def_with_multiple_volume_keyframes_roundtrips() {
+        // Given an audio clip with a fade-in / fade-out pattern.
+        let json = r#"{
+            "id": "bg",
+            "path": "song.mp3",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 30.0,
+            "animations": [
+                {
+                    "property": "volume",
+                    "keyframes": [
+                        {"time": 0.0, "value": 0.0, "easing": "Linear"},
+                        {"time": 2.0, "value": 1.0, "easing": "SineInOut"},
+                        {"time": 28.0, "value": 1.0, "easing": "Linear"},
+                        {"time": 30.0, "value": 0.0, "easing": "SineInOut"}
+                    ]
+                }
+            ]
+        }"#;
+
+        // When round-tripping through serde.
+        let clip: super::AudioClipDef = serde_json::from_str(json).expect("should parse");
+        let round_json = serde_json::to_string(&clip).unwrap();
+        let back: super::AudioClipDef = serde_json::from_str(&round_json).unwrap();
+
+        // Then all four keyframes are preserved with correct values and easings.
+        let kf = &back.animations[0].keyframes;
+        assert_eq!(kf.len(), 4);
+        assert!((kf[0].value - 0.0).abs() < 1e-5);
+        assert_eq!(kf[1].easing, crate::animation::Easing::SineInOut);
+        assert!((kf[2].value - 1.0).abs() < 1e-5);
+        assert_eq!(kf[3].easing, crate::animation::Easing::SineInOut);
+        assert!((kf[3].value - 0.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn project_with_audio_clip_animations_roundtrips() {
+        // Given a project JSON with an audio clip that has volume animations.
+        let json = r#"{
+            "resolution": [1920, 1080],
+            "fps": 60,
+            "duration": 30.0,
+            "output": "out.mp4",
+            "audio_clips": [{
+                "id": "bg",
+                "path": "song.mp3",
+                "track": 0,
+                "start_time": 0.0,
+                "end_time": 30.0,
+                "animations": [
+                    {
+                        "property": "volume",
+                        "keyframes": [
+                            {"time": 0.0, "value": 0.0, "easing": "Linear"},
+                            {"time": 3.0, "value": 1.0, "easing": "Linear"}
+                        ]
+                    }
+                ]
+            }],
+            "items": []
+        }"#;
+
+        // When round-tripping through serde.
+        let project: Project = serde_json::from_str(json).expect("should parse");
+        let out_json = serde_json::to_string(&project).unwrap();
+        let back: Project = serde_json::from_str(&out_json).unwrap();
+
+        // Then the audio clip animations survive the roundtrip.
+        assert_eq!(back.audio_clips.len(), 1);
+        assert_eq!(back.audio_clips[0].animations.len(), 1);
+        assert_eq!(
+            back.audio_clips[0].animations[0].property,
+            crate::animation::AudioAnimatableProperty::Volume
+        );
+        assert_eq!(back.audio_clips[0].animations[0].keyframes.len(), 2);
+    }
+
+    #[test]
+    fn audio_clip_def_backward_compat_without_animations() {
+        // Given old-format JSON with all fields but no animations.
+        let json = r#"{
+            "id": "bg",
+            "path": "song.mp3",
+            "track": 0,
+            "start_time": 0.0,
+            "end_time": 30.0,
+            "volume": 0.8,
+            "source_offset": 5.0,
+            "trim_end": 40.0
+        }"#;
+
+        // When parsing it.
+        let clip: super::AudioClipDef = serde_json::from_str(json).expect("should parse");
+
+        // Then all fields are preserved and animations defaults to empty.
+        assert_eq!(clip.id, "bg");
+        assert_eq!(clip.path, "song.mp3");
+        assert_eq!(clip.track, 0);
+        assert!((clip.start_time - 0.0).abs() < 1e-5);
+        assert!((clip.end_time - 30.0).abs() < 1e-5);
+        assert!((clip.volume - 0.8).abs() < 1e-5);
+        assert!((clip.source_offset - 5.0).abs() < 1e-5);
+        assert!((clip.trim_end - 40.0).abs() < 1e-5);
+        assert!(clip.animations.is_empty());
     }
 }

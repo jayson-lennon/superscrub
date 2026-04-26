@@ -48,6 +48,7 @@ fn load_project_with_audio(controller: &mut PlaybackController) {
         volume: 1.0,
         source_offset: 0.0,
         trim_end: 0.0,
+        animations: vec![],
     });
     controller.state_mut().load_project(
         project,
@@ -66,6 +67,7 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
         volume: 1.0,
         source_offset: 0.0,
         trim_end: 0.0,
+        animations: vec![],
     });
     project.audio_clips.push(ss_core::project::AudioClipDef {
         id: "audio2".to_string(),
@@ -76,6 +78,7 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
         volume: 0.8,
         source_offset: 0.0,
         trim_end: 0.0,
+        animations: vec![],
     });
     controller.state_mut().load_project(
         project,

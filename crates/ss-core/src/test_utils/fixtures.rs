@@ -81,6 +81,7 @@ pub fn build_audio_clip(id: &str, path: &str, start_time: f64, end_time: f64) ->
         volume: 1.0,
         source_offset: 0.0,
         trim_end: 0.0,
+        animations: vec![],
     }
 }
 

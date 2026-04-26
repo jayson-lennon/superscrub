@@ -249,11 +249,7 @@ impl KenBurnsBuilder {
 
             // Segment visibility window: the clip is the topmost visible layer from
             // when the clip above finishes fading, until this clip finishes fading.
-            let seg_start = if i > 0 {
-                timings[i - 1].fade_end
-            } else {
-                0.0
-            };
+            let seg_start = if i > 0 { timings[i - 1].fade_end } else { 0.0 };
             let seg_end = timings[i].fade_end;
 
             // Scale animation scoped to segment visibility.

@@ -42,6 +42,22 @@ pub struct Keyframe {
     pub easing: Easing,
 }
 
+/// Properties that can be animated on an audio clip.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum AudioAnimatableProperty {
+    #[serde(rename = "volume")]
+    Volume,
+}
+
+/// A single animation track targeting one audio property.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct AudioAnimationTrack {
+    /// Which property this track animates.
+    pub property: AudioAnimatableProperty,
+    /// Ordered keyframes for this track.
+    pub keyframes: Vec<Keyframe>,
+}
+
 /// Supported easing curves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
 pub enum Easing {

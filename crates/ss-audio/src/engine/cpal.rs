@@ -147,11 +147,30 @@ fn audio_callback(output: &mut [f32], state: &SharedState) {
         }
 
         let available = (max_source_samples - sample_offset).min(output.len());
-        let clip_volume = clip.volume * master_volume;
+
+        // Find volume animation track.
+        let volume_keyframes: &[ss_core::animation::Keyframe] = clip
+            .animations
+            .iter()
+            .find(|t| t.property == ss_core::animation::AudioAnimatableProperty::Volume)
+            .map(|t| t.keyframes.as_slice())
+            .unwrap_or(&[]);
+
+        // Clip-local time at the start of this buffer (animation time basis).
+        let clip_local_start = pos_secs - clip.start_time;
+        let samples_per_sec = sample_rate * channels as f64;
 
         // Mix (add) into output buffer.
         for i in 0..available {
-            output[i] += samples[sample_offset + i] * clip_volume;
+            let vol = if volume_keyframes.is_empty() {
+                clip.volume * master_volume
+            } else {
+                let local_time = clip_local_start + i as f64 / samples_per_sec;
+                ss_core::interpolation::interpolate_keyframes(volume_keyframes, local_time)
+                    .unwrap_or(clip.volume)
+                    * master_volume
+            };
+            output[i] += samples[sample_offset + i] * vol;
         }
     }
 
@@ -276,6 +295,7 @@ impl AudioEngine for CpalAudioEngine {
             volume: 1.0,
             source_offset: 0.0,
             trim_end: 0.0,
+            animations: vec![],
         };
 
         {
@@ -304,6 +324,7 @@ impl AudioEngine for CpalAudioEngine {
                 volume: info.volume,
                 source_offset: info.source_offset,
                 trim_end: info.trim_end,
+                animations: info.animations.clone(),
             });
         }
 
@@ -405,6 +426,7 @@ mod tests {
             volume,
             source_offset: 0.0,
             trim_end: 0.0,
+            animations: vec![],
         }
     }
 
@@ -738,6 +760,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.0,
             trim_end: 0.0,
+            animations: vec![],
         };
         *state.clips.write() = vec![clip];
         state.playing.store(true, Ordering::Relaxed);
@@ -765,6 +788,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.5, // skip first 5 samples
             trim_end: 0.0,
+            animations: vec![],
         };
         *state.clips.write() = vec![clip];
         state.playing.store(true, Ordering::Relaxed);
@@ -796,6 +820,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.0,
             trim_end: 0.5, // only first 5 samples
+            animations: vec![],
         };
         *state.clips.write() = vec![clip];
         state.playing.store(true, Ordering::Relaxed);
@@ -830,6 +855,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.2,
             trim_end: 0.7,
+            animations: vec![],
         };
         *state.clips.write() = vec![clip];
         state.playing.store(true, Ordering::Relaxed);
@@ -861,6 +887,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.8,
             trim_end: 0.5,
+            animations: vec![],
         };
         *state.clips.write() = vec![clip];
         state.playing.store(true, Ordering::Relaxed);
@@ -890,6 +917,264 @@ mod tests {
 
         // Then only clip_a contributes (clip_b hasn't started).
         assert!(output.iter().all(|&s| (s - 1.0).abs() < f32::EPSILON));
+    }
+
+    // ================================================================
+    // Volume animation callback tests
+    // ================================================================
+
+    #[test]
+    fn callback_applies_volume_fade_in() {
+        // Given a mono 10 Hz clip with constant source of 1.0 and a volume fade-in
+        // from 0.0 to 1.0 over 1.0 second.
+        let samples: Vec<f32> = vec![1.0; 10];
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![ss_core::animation::AudioAnimationTrack {
+                property: ss_core::animation::AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    ss_core::animation::Keyframe {
+                        time: 0.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    ss_core::animation::Keyframe {
+                        time: 1.0,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 10];
+
+        // When the audio callback is invoked.
+        audio_callback(&mut output, &state);
+
+        // Then the first sample is near 0.0 and the last sample is near 1.0
+        // (master volume = 1.0).
+        // At local_time = 0/10 = 0.0 → interpolated value = 0.0.
+        // At local_time = 9/10 = 0.9 → interpolated value = 0.9.
+        assert!(
+            (output[0] - 0.0).abs() < 1e-5,
+            "first sample: {}",
+            output[0]
+        );
+        assert!((output[9] - 0.9).abs() < 1e-5, "last sample: {}", output[9]);
+        // Mid-sample at i=5 → local_time=0.5 → value=0.5.
+        assert!((output[5] - 0.5).abs() < 1e-5, "mid sample: {}", output[5]);
+    }
+
+    #[test]
+    fn callback_applies_volume_fade_out() {
+        // Given a mono 10 Hz clip with constant source of 1.0 and a volume fade-out
+        // from 1.0 to 0.0 over 1.0 second.
+        let samples: Vec<f32> = vec![1.0; 10];
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![ss_core::animation::AudioAnimationTrack {
+                property: ss_core::animation::AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    ss_core::animation::Keyframe {
+                        time: 0.0,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    ss_core::animation::Keyframe {
+                        time: 1.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 10];
+
+        // When the audio callback is invoked.
+        audio_callback(&mut output, &state);
+
+        // Then the first sample is near 1.0 and later samples decrease.
+        // At local_time = 0/10 = 0.0 → interpolated value = 1.0.
+        // At local_time = 9/10 = 0.9 → interpolated value = 0.1.
+        assert!(
+            (output[0] - 1.0).abs() < 1e-5,
+            "first sample: {}",
+            output[0]
+        );
+        assert!((output[9] - 0.1).abs() < 1e-5, "last sample: {}", output[9]);
+        // Mid-sample at i=5 → local_time=0.5 → value=0.5.
+        assert!((output[5] - 0.5).abs() < 1e-5, "mid sample: {}", output[5]);
+    }
+
+    #[test]
+    fn callback_with_no_animations_uses_static_volume() {
+        // Given a clip with empty animations and volume=0.5.
+        let samples: Vec<f32> = vec![1.0; 10];
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 0.5,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![],
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 10];
+
+        // When the audio callback is invoked.
+        audio_callback(&mut output, &state);
+
+        // Then every sample is 0.5 (static clip volume * master volume 1.0).
+        assert!(output.iter().all(|&s| (s - 0.5).abs() < 1e-5));
+    }
+
+    #[test]
+    fn callback_with_empty_volume_keyframes_falls_back_to_static() {
+        // Given a clip with a volume animation track that has empty keyframes.
+        let samples: Vec<f32> = vec![1.0; 10];
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 0.7,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![ss_core::animation::AudioAnimationTrack {
+                property: ss_core::animation::AudioAnimatableProperty::Volume,
+                keyframes: vec![],
+            }],
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 10];
+
+        // When the audio callback is invoked.
+        audio_callback(&mut output, &state);
+
+        // Then every sample falls back to static volume 0.7 * master 1.0.
+        // Empty keyframes → interpolate_keyframes returns Err → fallback to clip.volume.
+        assert!(output.iter().all(|&s| (s - 0.7).abs() < 1e-5));
+    }
+
+    #[test]
+    fn callback_volume_animation_with_source_offset() {
+        // Given a mono 10 Hz clip with source_offset=0.2s (sample 2) and
+        // a volume ramp from 0.0 to 1.0 over 0.5s.
+        // Source samples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+        // source_offset=0.2 → start at sample 2, so played = [2.0, 3.0, 4.0, ...]
+        // Volume ramp: local_time=0.0 → vol=0.0, local_time=0.5 → vol=1.0.
+        let samples: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 1.0,
+            volume: 1.0,
+            source_offset: 0.2,
+            trim_end: 0.0,
+            animations: vec![ss_core::animation::AudioAnimationTrack {
+                property: ss_core::animation::AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    ss_core::animation::Keyframe {
+                        time: 0.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    ss_core::animation::Keyframe {
+                        time: 0.5,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        let mut output = vec![0.0f32; 8];
+
+        // When the audio callback is invoked at position 0.0.
+        audio_callback(&mut output, &state);
+
+        // Then the volume ramp starts from local_time=0.0 at the beginning of the window.
+        // i=0 → local_time=0.0 → vol=0.0 → output = 2.0 * 0.0 = 0.0
+        // i=5 → local_time=0.5 → vol=1.0 → output = 7.0 * 1.0 = 7.0
+        assert!((output[0] - 0.0).abs() < 1e-5, "sample 0: {}", output[0]);
+        assert!((output[5] - 7.0).abs() < 1e-5, "sample 5: {}", output[5]);
+    }
+
+    #[test]
+    fn callback_volume_animation_uses_clip_local_time_not_buffer_index() {
+        // Given a mono 10 Hz clip with a volume fade-in from 0.0 to 1.0 over 0.5s,
+        // and playback position at 1.0s (past the fade-in, so volume should be 1.0).
+        let samples: Vec<f32> = vec![1.0; 20];
+        let decoded = make_decoded_audio(samples, 1, 10);
+        let state = SharedState::new(10, 1);
+        let clip = LoadedAudioClip {
+            audio: decoded,
+            start_time: 0.0,
+            end_time: 2.0,
+            volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![ss_core::animation::AudioAnimationTrack {
+                property: ss_core::animation::AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    ss_core::animation::Keyframe {
+                        time: 0.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    ss_core::animation::Keyframe {
+                        time: 0.5,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        *state.clips.write() = vec![clip];
+        state.playing.store(true, Ordering::Relaxed);
+        // Position at 1.0s — well past the fade-in.
+        state.store_position_secs(1.0);
+        let mut output = vec![0.0f32; 5];
+
+        // When the audio callback is invoked.
+        audio_callback(&mut output, &state);
+
+        // Then the volume is 1.0 (not 0.0 from buffer-relative index 0).
+        // The old bug computed local_time = i / (rate * channels), always
+        // starting from 0.0 per buffer, so volume would incorrectly be 0.0.
+        // The fix uses clip_local_start + i / samples_per_sec, so at
+        // pos=1.0s the local_time starts at 1.0s, well past the fade-in.
+        assert!(
+            output.iter().all(|&s| (s - 1.0).abs() < 1e-5),
+            "all samples should be at full volume, got: {output:?}"
+        );
     }
 
     // ================================================================

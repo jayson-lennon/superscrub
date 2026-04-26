@@ -407,6 +407,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.0,
             trim_end: 0.0,
+            animations: vec![],
         }];
 
         // When calling load_clips().
@@ -428,6 +429,7 @@ mod tests {
                 volume: 0.8,
                 source_offset: 0.0,
                 trim_end: 0.0,
+                animations: vec![],
             },
             crate::engine::AudioClipInfo {
                 path: std::path::PathBuf::from("b.wav"),
@@ -436,6 +438,7 @@ mod tests {
                 volume: 0.5,
                 source_offset: 0.0,
                 trim_end: 0.0,
+                animations: vec![],
             },
         ];
 
@@ -461,6 +464,7 @@ mod tests {
                 volume: 1.0,
                 source_offset: 0.0,
                 trim_end: 0.0,
+                animations: vec![],
             },
             crate::engine::AudioClipInfo {
                 path: std::path::PathBuf::from("b.wav"),
@@ -469,6 +473,7 @@ mod tests {
                 volume: 1.0,
                 source_offset: 0.0,
                 trim_end: 0.0,
+                animations: vec![],
             },
         ];
 

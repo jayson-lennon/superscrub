@@ -149,9 +149,7 @@ impl BufferPool {
     ///
     /// If the pool is at capacity, the oldest buffer is dropped to make room.
     pub fn release(&self, buf: PooledBuffer<Ready>) {
-        let vec = buf
-            .buf
-            .expect("PooledBuffer<Ready> always contains a Vec");
+        let vec = buf.buf.expect("PooledBuffer<Ready> always contains a Vec");
         let mut buffers = self.buffers.lock();
 
         if buffers.len() >= self.max_size {
@@ -184,7 +182,10 @@ mod tests {
         assert_eq!(buf.capacity(), 100);
         let (vec, _) = buf.take();
         assert_eq!(vec.len(), 100);
-        assert!(vec.iter().all(|&b| b == 0), "buffer should be zero-initialized");
+        assert!(
+            vec.iter().all(|&b| b == 0),
+            "buffer should be zero-initialized"
+        );
     }
 
     #[test]
@@ -203,9 +204,16 @@ mod tests {
         let buf = pool.acquire(100);
 
         // Then the pool reuses the returned buffer.
-        assert_eq!(pool.len(), 0, "pool should be empty after reusing the buffer");
+        assert_eq!(
+            pool.len(),
+            0,
+            "pool should be empty after reusing the buffer"
+        );
         let (vec, _) = buf.take();
-        assert!(vec.iter().all(|&b| b == 0xAB), "reused buffer should contain previous data");
+        assert!(
+            vec.iter().all(|&b| b == 0xAB),
+            "reused buffer should contain previous data"
+        );
     }
 
     #[test]
@@ -237,7 +245,11 @@ mod tests {
         // Then the pool contains [200, 300] (oldest dropped).
         let buffers = pool.buffers.lock();
         assert_eq!(buffers.len(), 2);
-        assert_eq!(buffers[0].len(), 200, "oldest (100) should be dropped, 200 remains");
+        assert_eq!(
+            buffers[0].len(),
+            200,
+            "oldest (100) should be dropped, 200 remains"
+        );
         assert_eq!(buffers[1].len(), 300);
     }
 
@@ -254,6 +266,9 @@ mod tests {
         // Then the result is Ok(PooledBuffer<Ready>) and the buffer contains 0xAB bytes.
         let ready = result.expect("same size should succeed");
         let (vec, _) = ready.take();
-        assert!(vec.iter().all(|&b| b == 0xAB), "buffer should contain 0xAB bytes");
+        assert!(
+            vec.iter().all(|&b| b == 0xAB),
+            "buffer should contain 0xAB bytes"
+        );
     }
 }

@@ -84,6 +84,7 @@ pub fn render_audio(
             volume: clip_def.volume,
             source_offset: clip_def.source_offset,
             trim_end: clip_def.trim_end,
+            animations: clip_def.animations.clone(),
         });
     }
 

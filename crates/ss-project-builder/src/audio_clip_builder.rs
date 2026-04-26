@@ -54,6 +54,9 @@ pub struct AudioClipParams {
     /// A value of 0.0 means play to the end of the source file.
     #[builder(default = 0.0)]
     pub trim_end: f64,
+    /// Audio animation tracks (volume automation, etc.).
+    #[builder(default)]
+    pub animations: Vec<ss_core::AudioAnimationTrack>,
 }
 
 /// Builder for constructing an [`AudioClipDef`] with runtime validation.
@@ -105,6 +108,7 @@ impl AudioClipBuilder {
             volume: self.params.volume,
             source_offset: self.params.source_offset,
             trim_end: self.params.trim_end,
+            animations: self.params.animations,
         })
     }
 }
@@ -229,5 +233,55 @@ mod tests {
         // Then the strings are properly owned.
         assert_eq!(clip.id, "test");
         assert_eq!(clip.path, "song.mp3");
+    }
+
+    #[test]
+    fn build_audio_clip_with_animations() {
+        // Given an AudioClipBuilder with volume animations.
+        let params = AudioClipParams::builder()
+            .id("bg")
+            .path("song.mp3")
+            .end_time(30.0)
+            .animations(vec![ss_core::AudioAnimationTrack {
+                property: ss_core::AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    ss_core::Keyframe {
+                        time: 0.0,
+                        value: 0.0,
+                        easing: ss_core::Easing::Linear,
+                    },
+                    ss_core::Keyframe {
+                        time: 2.0,
+                        value: 1.0,
+                        easing: ss_core::Easing::Linear,
+                    },
+                ],
+            }])
+            .build();
+
+        // When building.
+        let clip = AudioClipBuilder::new(params).build().unwrap();
+
+        // Then the animations appear in the output.
+        assert_eq!(clip.animations.len(), 1);
+        assert_eq!(
+            clip.animations[0].property,
+            ss_core::AudioAnimatableProperty::Volume
+        );
+        assert_eq!(clip.animations[0].keyframes.len(), 2);
+        assert!((clip.animations[0].keyframes[0].value - 0.0).abs() < 1e-5);
+        assert!((clip.animations[0].keyframes[1].value - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn build_audio_clip_without_animations_defaults_to_empty() {
+        // Given an AudioClipBuilder without animations set.
+        let params = minimal_params("bg", "song.mp3", 30.0);
+
+        // When building.
+        let clip = AudioClipBuilder::new(params).build().unwrap();
+
+        // Then animations is an empty vec.
+        assert!(clip.animations.is_empty());
     }
 }

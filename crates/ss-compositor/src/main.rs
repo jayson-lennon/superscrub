@@ -9,9 +9,7 @@ use ss_compositor::{CompositorRenderer, FilesystemImageProvider, FrameRenderer, 
 use ss_core::project::Project;
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_target(true)
-        .init();
+    tracing_subscriber::fmt().with_target(true).init();
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 4 {

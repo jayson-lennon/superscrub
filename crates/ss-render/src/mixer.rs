@@ -1,8 +1,9 @@
 //! Offline audio mixer for the render pipeline.
 //!
 //! Mixes multiple audio clips into a single output buffer, applying
-//! per-clip volume and timeline positioning. This is a pure function
-//! with no I/O or audio device dependency — fully testable.
+//! per-clip volume (static or keyframed) and timeline positioning.
+//! This is a pure function with no I/O or audio device dependency —
+//! fully testable.
 
 /// A decoded audio clip ready for mixing.
 ///
@@ -26,6 +27,8 @@ pub struct MixedClip {
     /// Offset into the source audio where playback ends (seconds).
     /// 0.0 means play to the end of the source file.
     pub trim_end: f64,
+    /// Audio animation tracks (volume automation).
+    pub animations: Vec<ss_core::animation::AudioAnimationTrack>,
 }
 
 /// Mix multiple clips into a single interleaved f32 buffer.
@@ -66,6 +69,9 @@ fn mix_single_clip(
     output_sample_rate: u32,
     output_channels: u16,
 ) {
+    use ss_core::animation::AudioAnimatableProperty;
+    use ss_core::interpolation::interpolate_keyframes;
+
     let start_sample =
         (clip.start_time * output_sample_rate as f64 * output_channels as f64) as usize;
     let clip_volume = clip.volume;
@@ -86,12 +92,29 @@ fn mix_single_clip(
         return; // Nothing to mix (offset past trim or past source).
     }
 
+    // Find the volume animation track.
+    let volume_keyframes: &[ss_core::animation::Keyframe] = clip
+        .animations
+        .iter()
+        .find(|t| t.property == AudioAnimatableProperty::Volume)
+        .map(|t| t.keyframes.as_slice())
+        .unwrap_or(&[]);
+
     for i in source_start..source_end {
         let out_idx = start_sample + (i - source_start);
         if out_idx >= output.len() {
             break;
         }
-        output[out_idx] += clip.samples[i] * clip_volume;
+
+        let vol = if volume_keyframes.is_empty() {
+            clip_volume
+        } else {
+            let local_time =
+                (i - source_start) as f64 / (clip.sample_rate as f64 * clip.channels as f64);
+            interpolate_keyframes(volume_keyframes, local_time).unwrap_or(clip_volume)
+        };
+
+        output[out_idx] += clip.samples[i] * vol;
     }
 }
 
@@ -112,6 +135,7 @@ mod tests {
             volume,
             source_offset: 0.0,
             trim_end: 0.0,
+            animations: vec![],
         }
     }
 
@@ -235,6 +259,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.5,
             trim_end: 0.0,
+            animations: vec![],
         };
         let duration = std::time::Duration::from_secs_f64(2.0);
 
@@ -265,6 +290,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.0,
             trim_end: 0.5,
+            animations: vec![],
         };
         let duration = std::time::Duration::from_secs_f64(2.0);
 
@@ -297,6 +323,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.2,
             trim_end: 0.7,
+            animations: vec![],
         };
         let duration = std::time::Duration::from_secs_f64(2.0);
 
@@ -325,6 +352,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.8,
             trim_end: 0.5,
+            animations: vec![],
         };
         let duration = std::time::Duration::from_secs_f64(2.0);
 
@@ -348,6 +376,7 @@ mod tests {
             volume: 1.0,
             source_offset: 0.0,
             trim_end: 5.0, // way past actual source
+            animations: vec![],
         };
         let duration = std::time::Duration::from_secs_f64(2.0);
 
@@ -358,5 +387,234 @@ mod tests {
         assert_eq!(output[0], 0.0);
         assert_eq!(output[9], 9.0);
         assert!(output[10..].iter().all(|&s| s == 0.0));
+    }
+
+    // ================================================================
+    // Volume animation tests
+    // ================================================================
+
+    #[test]
+    fn mix_clip_with_volume_fade_in_applies_ramp() {
+        // Given a 10 Hz mono clip with constant source=1.0 and volume keyframes
+        // ramping from 0.0 at t=0 to 1.0 at t=1.0.
+        use ss_core::animation::{AudioAnimatableProperty, AudioAnimationTrack, Keyframe};
+
+        let samples = vec![1.0f32; 10]; // 1 second at 10 Hz mono
+        let clip = MixedClip {
+            samples,
+            channels: 1,
+            sample_rate: 10,
+            start_time: 0.0,
+            volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![AudioAnimationTrack {
+                property: AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    Keyframe {
+                        time: 0.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    Keyframe {
+                        time: 1.0,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        let duration = std::time::Duration::from_secs_f64(2.0);
+
+        // When mixing.
+        let output = mix_clips(&[clip], 10, 1, duration);
+
+        // Then first sample is near 0.0 and last sample is near 0.9.
+        // At sample 0: local_time=0.0, interpolated volume=0.0
+        // At sample 9: local_time=0.9, interpolated volume=0.9
+        assert!(
+            output[0].abs() < 0.01,
+            "first sample should be near 0.0, got {}",
+            output[0]
+        );
+        assert!(
+            (output[9] - 0.9).abs() < 0.01,
+            "last sample should be near 0.9, got {}",
+            output[9]
+        );
+        // Volume should increase monotonically.
+        for w in output.windows(2) {
+            if w[0] > 0.0 && w[1] > 0.0 {
+                assert!(w[1] >= w[0], "volume should increase: {} -> {}", w[0], w[1]);
+            }
+        }
+    }
+
+    #[test]
+    fn mix_clip_with_volume_fade_out_applies_ramp() {
+        // Given a 10 Hz mono clip with constant source=1.0 and volume keyframes
+        // ramping from 1.0 at t=0 to 0.0 at t=1.0.
+        use ss_core::animation::{AudioAnimatableProperty, AudioAnimationTrack, Keyframe};
+
+        let samples = vec![1.0f32; 10]; // 1 second at 10 Hz mono
+        let clip = MixedClip {
+            samples,
+            channels: 1,
+            sample_rate: 10,
+            start_time: 0.0,
+            volume: 1.0,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![AudioAnimationTrack {
+                property: AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    Keyframe {
+                        time: 0.0,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    Keyframe {
+                        time: 1.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        let duration = std::time::Duration::from_secs_f64(2.0);
+
+        // When mixing.
+        let output = mix_clips(&[clip], 10, 1, duration);
+
+        // Then first sample is near 1.0 and last sample is near 0.1.
+        // At sample 0: local_time=0.0, interpolated volume=1.0
+        // At sample 9: local_time=0.9, interpolated volume=0.1
+        assert!(
+            (output[0] - 1.0).abs() < 0.01,
+            "first sample should be near 1.0, got {}",
+            output[0]
+        );
+        assert!(
+            (output[9] - 0.1).abs() < 0.01,
+            "last sample should be near 0.1, got {}",
+            output[9]
+        );
+        // Volume should decrease monotonically.
+        for w in output.windows(2) {
+            if w[0] > 0.0 && w[1] > 0.0 {
+                assert!(w[1] <= w[0], "volume should decrease: {} -> {}", w[0], w[1]);
+            }
+        }
+    }
+
+    #[test]
+    fn mix_clip_with_no_animations_uses_static_volume() {
+        // Given a clip with empty animations and volume=0.5.
+        let samples = vec![1.0f32; 4];
+        let clip = MixedClip {
+            samples,
+            channels: 1,
+            sample_rate: 10,
+            start_time: 0.0,
+            volume: 0.5,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![],
+        };
+        let duration = std::time::Duration::from_secs_f64(1.0);
+
+        // When mixing.
+        let output = mix_clips(&[clip], 10, 1, duration);
+
+        // Then every sample is exactly 0.5 (static volume * source 1.0).
+        assert!(output[..4].iter().all(|&s| (s - 0.5).abs() < 1e-6));
+        assert!(output[4..].iter().all(|&s| s == 0.0));
+    }
+
+    #[test]
+    fn mix_clip_with_volume_keyframes_and_source_offset() {
+        // Given a 10 Hz mono clip with source_offset=0.2s and volume keyframes
+        // ramping from 0.0 to 1.0 over 0.5s.
+        // source_offset=0.2s means source_start=2. The clip plays samples 2..10.
+        // local_time for sample i is (i - source_start) / (sample_rate * channels).
+        use ss_core::animation::{AudioAnimatableProperty, AudioAnimationTrack, Keyframe};
+
+        let samples: Vec<f32> = (0..10).map(|_| 1.0f32).collect();
+        let clip = MixedClip {
+            samples,
+            channels: 1,
+            sample_rate: 10,
+            start_time: 0.0,
+            volume: 1.0,
+            source_offset: 0.2,
+            trim_end: 0.0,
+            animations: vec![AudioAnimationTrack {
+                property: AudioAnimatableProperty::Volume,
+                keyframes: vec![
+                    Keyframe {
+                        time: 0.0,
+                        value: 0.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                    Keyframe {
+                        time: 0.5,
+                        value: 1.0,
+                        easing: ss_core::animation::Easing::Linear,
+                    },
+                ],
+            }],
+        };
+        let duration = std::time::Duration::from_secs_f64(2.0);
+
+        // When mixing.
+        let output = mix_clips(&[clip], 10, 1, duration);
+
+        // Then the first output sample (source sample 2, local_time=0.0) has volume 0.0.
+        // The 5th output sample (source sample 6, local_time=0.4) has volume 0.8.
+        // The 6th output sample (source sample 7, local_time=0.5) has volume 1.0.
+        assert!(
+            output[0].abs() < 0.01,
+            "first sample should be near 0.0, got {}",
+            output[0]
+        );
+        assert!(
+            (output[4] - 0.8).abs() < 0.01,
+            "5th sample should be near 0.8, got {}",
+            output[4]
+        );
+        assert!(
+            (output[5] - 1.0).abs() < 0.01,
+            "6th sample should be near 1.0, got {}",
+            output[5]
+        );
+    }
+
+    #[test]
+    fn mix_clip_with_empty_volume_keyframes_falls_back_to_static() {
+        // Given a clip with a volume animation track that has empty keyframes.
+        use ss_core::animation::{AudioAnimatableProperty, AudioAnimationTrack};
+
+        let samples = vec![1.0f32; 4];
+        let clip = MixedClip {
+            samples,
+            channels: 1,
+            sample_rate: 10,
+            start_time: 0.0,
+            volume: 0.75,
+            source_offset: 0.0,
+            trim_end: 0.0,
+            animations: vec![AudioAnimationTrack {
+                property: AudioAnimatableProperty::Volume,
+                keyframes: vec![],
+            }],
+        };
+        let duration = std::time::Duration::from_secs_f64(1.0);
+
+        // When mixing.
+        let output = mix_clips(&[clip], 10, 1, duration);
+
+        // Then the empty keyframes vec means volume_keyframes is empty, so
+        // the static volume fallback is used (clip.volume=0.75 per sample).
+        assert!(output[..4].iter().all(|&s| (s - 0.75).abs() < 1e-6));
     }
 }

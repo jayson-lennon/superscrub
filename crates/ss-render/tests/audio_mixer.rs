@@ -56,6 +56,7 @@ fn render_audio_with_nonexistent_file_returns_error() {
         volume: 1.0,
         source_offset: 0.0,
         trim_end: 0.0,
+        animations: vec![],
     }]);
     let dir = tempfile::tempdir().unwrap();
 
@@ -83,6 +84,7 @@ fn mix_clips_produces_correct_duration() {
         volume: 1.0,
         source_offset: 0.0,
         trim_end: 0.0,
+        animations: vec![],
     };
     let duration = std::time::Duration::from_secs_f64(10.0);
 

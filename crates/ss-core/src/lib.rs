@@ -25,7 +25,10 @@ pub mod watcher;
 #[doc(hidden)]
 pub mod test_utils;
 
-pub use animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
+pub use animation::{
+    AnimatableProperty, AnimationTrack, AudioAnimatableProperty, AudioAnimationTrack, Easing,
+    Keyframe,
+};
 pub use interpolation::{InterpolationError, apply_easing, interpolate_keyframes, resolve_items};
 pub use item::{FitAnchor, FitMode, ItemContent, ItemDef, Sizing};
 pub use path_resolve::{PathResolveError, resolve_path};

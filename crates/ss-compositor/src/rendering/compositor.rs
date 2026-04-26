@@ -25,9 +25,9 @@ use ss_core::project::Project;
 use ss_core::transform::ResolvedItem;
 
 use crate::image::ImageProvider;
-use crate::rendering::buffer_pool::{self, BufferPool, PooledBuffer};
 use crate::rendering::CompositorError;
 use crate::rendering::FrameRenderer;
+use crate::rendering::buffer_pool::{self, BufferPool, PooledBuffer};
 use crate::sizing::{PlacedRect, compute_placement};
 use crate::viewport::Viewport;
 
@@ -297,7 +297,12 @@ fn warp_from_plan(pool: &BufferPool, plan: ClipPlan) -> WarpedClip {
     // Dispatch based on transform class.
     match transform_class {
         TransformClass::ScaleTranslate => {
-            warp_resize_into(&mut output, &source, &forward.0, (aabb_x, aabb_y, aabb_w, aabb_h));
+            warp_resize_into(
+                &mut output,
+                &source,
+                &forward.0,
+                (aabb_x, aabb_y, aabb_w, aabb_h),
+            );
         }
         TransformClass::General => {
             // Existing imageproc::warp_into path for rotated/skewed clips.

@@ -188,6 +188,8 @@ mod tall {
 
         let logo_clip = build_logo();
 
+        const FADE_DURATION: f64 = 2.0;
+
         let audio_clip = AudioClipBuilder::new(
             AudioClipParams::builder()
                 .id("audio")
@@ -195,6 +197,34 @@ mod tall {
                 .start_time(0.0)
                 .end_time(DURATION)
                 .source_offset(SOURCE_OFFSET)
+                .animations(vec![ss_core::AudioAnimationTrack {
+                    property: ss_core::AudioAnimatableProperty::Volume,
+                    keyframes: vec![
+                        // Fade in over first 2 seconds.
+                        ss_core::Keyframe {
+                            time: 0.0,
+                            value: 0.0,
+                            easing: ss_core::Easing::Linear,
+                        },
+                        ss_core::Keyframe {
+                            time: FADE_DURATION,
+                            value: 1.0,
+                            easing: ss_core::Easing::Linear,
+                        },
+                        // Hold at full volume until fade-out begins.
+                        ss_core::Keyframe {
+                            time: DURATION - FADE_DURATION,
+                            value: 1.0,
+                            easing: ss_core::Easing::Linear,
+                        },
+                        // Fade out over last 2 seconds.
+                        ss_core::Keyframe {
+                            time: DURATION,
+                            value: 0.0,
+                            easing: ss_core::Easing::Linear,
+                        },
+                    ],
+                }])
                 .build(),
         );
 
