@@ -4,6 +4,11 @@
 //! multi-track transform resolution. Given an item and a time, it produces
 //! a fully resolved transform state. For groups, it recursively resolves
 //! all children with composed ancestor transforms.
+//!
+//! ## Keyframe Construction Guide
+//!
+//! For guidance on constructing correct keyframe sequences (especially hold-then-fade
+//! and similar patterns), see the [`AnimBuilder`](ss_project_builder::AnimBuilder) documentation.
 
 use tracing::{instrument, trace};
 

@@ -10,8 +10,8 @@
 
 use ss_effects::{KenBurnsBuilder, KenBurnsDirection, KenBurnsParams, KenBurnsSegmentParams};
 use ss_project_builder::{
-    AudioClipBuilder, AudioClipParams, ClipBuilder, ClipParams, ProjectBuilder, ProjectParams,
-    clip_builder::sizing,
+    AnimBuilder, AudioClipBuilder, AudioClipParams, ClipBuilder, ClipParams, ProjectBuilder,
+    ProjectParams, clip_builder::sizing,
 };
 
 /// Project directory containing source assets.
@@ -138,6 +138,7 @@ mod wide {
             "output-wide.mp4",
             kb_clips,
             logo_clip,
+            None,
             audio_clip,
         );
     }
@@ -183,10 +184,14 @@ mod tall {
 
     const IMAGES: &[&str] = &[BG_1, BG_2, BG_3];
 
+    const THUMB: &str = "thumb-short.png";
+
     pub fn generate(project_dir: &std::path::Path) {
         let kb_clips = build_tall_ken_burns();
 
         let logo_clip = build_logo();
+
+        let thumb_clip = build_thumb();
 
         const FADE_DURATION: f64 = 2.0;
 
@@ -236,6 +241,7 @@ mod tall {
             "output-tall.mp4",
             kb_clips,
             logo_clip,
+            Some(thumb_clip),
             audio_clip,
         );
     }
@@ -307,6 +313,44 @@ mod tall {
                 .build(),
         )
     }
+
+    #[rustfmt::skip]
+    fn build_thumb() -> ClipBuilder {
+        // Visible-invisible-visible pattern using the clamp trick.
+        // See AnimBuilder docs for the keyframe interpolation model.
+        //
+        // t=0..2     hold at 1.0 (pre-first-keyframe clamping)
+        // t=2..4     fade out to 0.0
+        // t=4..45    hold at 0.0 (adjacent keyframes with same value)
+        // t=45..47   fade in to 1.0
+        // t=47..48   hold at 1.0
+        // t=48..49   post-last-keyframe hold at 1.0
+        let fade_out_end = 4.0;
+        let fade_in_start = DURATION - 2.0;
+        ClipBuilder::new(
+            ClipParams::builder()
+                .id("thumb")
+                .path(THUMB)
+                .start_time(0.0)
+                .end_time(DURATION)
+                .z_index(200)
+                .sizing(sizing::explicit(RESOLUTION[0], RESOLUTION[1]))
+                .build(),
+        )
+        .add_animation(ss_project_builder::AnimBuilder::from_keyframes(
+            ss_core::AnimatableProperty::Opacity,
+            vec![
+                // Clamp trick: first keyframe at t=2, so opacity holds at 1.0 before this.
+                ss_core::Keyframe { time: 2.0, value: 1.0, easing: ss_core::Easing::Linear, },
+                // Fade out over 2 seconds (t=2 → t=4).
+                ss_core::Keyframe { time: fade_out_end, value: 0.0, easing: ss_core::Easing::Linear, },
+                // Hold invisible: same value (0.0) from t=4 to t=45.
+                ss_core::Keyframe { time: fade_in_start, value: 0.0, easing: ss_core::Easing::Linear, },
+                // Fade in over 2 seconds (t=45 → t=47).
+                ss_core::Keyframe { time: DURATION, value: 1.0, easing: ss_core::Easing::Linear, },
+            ],
+        ))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +365,7 @@ fn write_project(
     output: &str,
     kb_clips: Vec<ClipBuilder>,
     logo_clip: ClipBuilder,
+    thumb_clip: Option<ClipBuilder>,
     audio_clip: AudioClipBuilder,
 ) {
     let project_params = ProjectParams::builder()
@@ -332,9 +377,15 @@ fn write_project(
         .build();
 
     let project_path = project_dir.join(filename);
-    ProjectBuilder::new(project_params)
+    let mut builder = ProjectBuilder::new(project_params)
         .add_clips_at(0.0, kb_clips)
-        .add_clip(logo_clip)
+        .add_clip(logo_clip);
+
+    if let Some(thumb) = thumb_clip {
+        builder = builder.add_clip(thumb);
+    }
+
+    builder
         .add_audio_clip(audio_clip)
         .to_json_file(&project_path)
         .unwrap_or_else(|e| {

@@ -1,7 +1,90 @@
 //! Animation track builder with keyframe accumulation.
 //!
-//! Provides [`AnimBuilder`] for constructing [`AnimationTrack`] instances
-//! via property-specific constructors and keyframe method chains.
+//! [`AnimBuilder`] constructs [`AnimationTrack`] instances by accumulating
+//! keyframes via a method-chain API. Create a builder with a property-specific
+//! constructor (e.g. [`AnimBuilder::opacity`]), chain `.keyframe()` calls, and
+//! finish with `.build()`.
+//!
+//! # Keyframe interpolation model
+//!
+//! At runtime, the compositor resolves a property value at a given time as
+//! follows:
+//!
+//! - **Before the first keyframe** — the first keyframe's value is held.
+//! - **After the last keyframe** — the last keyframe's value is held.
+//! - **Between two adjacent keyframes** — progress is normalized to `[0, 1]`
+//!   between the pair, easing is applied, and the two values are lerped.
+//!
+//! This means interpolation always happens between **adjacent pairs** — there
+//! is no single "span the whole duration" behaviour.
+//!
+//! # The hold-then-fade pitfall
+//!
+//! A common mistake is placing only two keyframes at the clip boundaries when
+//! you want a hold followed by a transition. For example, a clip that should
+//! hold opacity at `1.0` for 2 seconds, then fade to `0.0` over 2 seconds
+//! (total duration 4 s):
+//!
+//! ```ignore
+//! // WRONG — fades across the entire 4 seconds
+//! AnimBuilder::opacity()
+//!     .keyframe(0.0, 1.0)
+//!     .keyframe(4.0, 0.0)
+//!     .build()
+//! ```
+//!
+//! There are two correct approaches:
+//!
+//! ```ignore
+//! // RIGHT (clamp trick) — value holds at 1.0 before t=2, then fades
+//! AnimBuilder::opacity()
+//!     .keyframe(2.0, 1.0)
+//!     .keyframe(4.0, 0.0)
+//!     .build()
+//! ```
+//!
+//! ```ignore
+//! // RIGHT (explicit hold) — duplicate value at t=2 creates a flat segment
+//! AnimBuilder::opacity()
+//!     .keyframe(0.0, 1.0)
+//!     .keyframe(2.0, 1.0)
+//!     .keyframe(4.0, 0.0)
+//!     .build()
+//! ```
+//!
+//! # Worked examples
+//!
+//! **Fade in then hold** — fade from `0.0` to `1.0` over 2 s, then hold at
+//! `1.0` until `t=10`:
+//!
+//! ```ignore
+//! AnimBuilder::opacity()
+//!     .keyframe(0.0, 0.0)
+//!     .keyframe(2.0, 1.0)
+//!     .keyframe(10.0, 1.0)
+//!     .build()
+//! ```
+//!
+//! **Single constant value** — hold opacity at `0.5` for the entire duration:
+//!
+//! ```ignore
+//! AnimBuilder::opacity()
+//!     .keyframe(0.0, 0.5)
+//!     .build()
+//! ```
+//!
+//! **Visible-invisible-visible** — a 5-keyframe thumbnail overlay pattern
+//! (hold `1.0`, fade to `0.0`, hold `0.0`, fade back to `1.0`, hold `1.0`):
+//!
+//! ```ignore
+//! AnimBuilder::opacity()
+//!     .keyframe(0.0, 1.0)
+//!     .keyframe(2.0, 1.0)   // end of first hold
+//!     .keyframe(3.0, 0.0)   // fade out complete
+//!     .keyframe(7.0, 0.0)   // end of invisible hold
+//!     .keyframe(8.0, 1.0)   // fade in complete
+//!     .build()
+//! ```
 //!
 //! # Usage
 //!
