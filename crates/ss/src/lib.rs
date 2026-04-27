@@ -16,6 +16,12 @@ pub use ss_project_builder::{
     ClipParams, GroupBuilder, GroupParams, ProjectBuilder, ProjectParams,
 };
 
+/// Re-export of the [`ss_project_builder`] crate for accessing submodules
+/// like [`clip_builder::sizing`].
+///
+/// [`clip_builder::sizing`]: ss_project_builder::clip_builder::sizing
+pub use ss_project_builder;
+
 // Re-export core types so consumers don't need a separate ss-core dep.
 pub use ss_core;
 

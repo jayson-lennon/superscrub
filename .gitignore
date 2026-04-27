@@ -16,6 +16,11 @@ debt.json
 flamegraph*.svg
 perf.*
 
+# Packaging
+pkg/
+*.tar.zst
+superscrub/
+
 # app
 projects/
 *.flac
