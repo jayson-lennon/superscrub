@@ -1,3 +1,3 @@
 ## License
 
-[AGPLv3](LICENSE)
+[AGPL-3.0](LICENSE)
