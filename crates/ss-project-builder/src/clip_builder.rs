@@ -30,6 +30,8 @@
 //! The [`sizing`] module provides convenience constructors for [`Sizing`](ss_core::Sizing)
 //! variants.
 
+use std::path::PathBuf;
+
 use ss_core::{ItemContent, ItemDef, Sizing};
 
 use crate::{AnimBuilder, BuilderError, BuilderErrors};
@@ -92,12 +94,12 @@ pub mod sizing {
 /// you cannot call `.build()` without setting them. All other fields have
 /// sensible defaults.
 #[derive(bon::Builder)]
-#[builder(on(String, into))]
+#[builder(on(String, into), on(PathBuf, into))]
 pub struct ClipParams {
     /// Unique identifier for the clip.
     pub id: String,
     /// Path to the source file, relative to the project.
-    pub path: String,
+    pub path: PathBuf,
     /// Track lane index.
     #[builder(default = 0)]
     pub track: u32,

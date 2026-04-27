@@ -280,7 +280,7 @@ mod tests {
         ItemDef {
             id: id.to_string(),
             content: ItemContent::Image {
-                path: "test.png".to_string(),
+                path: std::path::PathBuf::from("test.png"),
             },
             track: 0,
             start_time: start,

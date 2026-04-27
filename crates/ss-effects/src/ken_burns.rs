@@ -33,6 +33,8 @@
 mod mapping;
 mod timing;
 
+use std::path::PathBuf;
+
 use ss_core::Easing;
 use ss_project_builder::{AnimBuilder, ClipBuilder, ClipParams, clip_builder::sizing};
 
@@ -77,10 +79,10 @@ pub enum KenBurnsDirection {
 /// default to `None` and are resolved from the builder-level defaults during
 /// [`KenBurnsBuilder::build`].
 #[derive(bon::Builder)]
-#[builder(on(String, into))]
+#[builder(on(String, into), on(PathBuf, into))]
 pub struct KenBurnsSegmentParams {
     /// Path to the image for this segment.
-    pub image_path: String,
+    pub image_path: PathBuf,
     /// Pan/zoom direction for this segment.
     pub direction: KenBurnsDirection,
     /// Hold duration before fading. Falls back to builder default.
@@ -99,7 +101,7 @@ pub struct KenBurnsSegmentParams {
 
 /// Resolved segment with all fields filled in (no `Option`s).
 struct KenBurnsSegment {
-    image_path: String,
+    image_path: PathBuf,
     direction: KenBurnsDirection,
     hold_duration: f64,
     fade_duration: f64,

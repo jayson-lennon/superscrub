@@ -199,7 +199,7 @@ fn built_project_round_trips_through_serde() {
     assert_eq!(project.resolution, [1280, 720]);
     assert_eq!(project.fps, 30);
     assert!((project.duration.as_secs_f64() - 10.0).abs() < 1e-5);
-    assert_eq!(project.output, "out.mp4");
+    assert_eq!(project.output, std::path::PathBuf::from("out.mp4"));
     assert_eq!(project.items.len(), 1);
     assert_eq!(project.items[0].id, "test");
     assert_eq!(project.items[0].animations.len(), 1);

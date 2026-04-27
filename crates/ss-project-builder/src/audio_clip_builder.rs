@@ -20,6 +20,8 @@
 //! .unwrap();
 //! ```
 
+use std::path::PathBuf;
+
 use ss_core::AudioClipDef;
 
 use crate::{BuilderError, BuilderErrors};
@@ -30,12 +32,12 @@ use crate::{BuilderError, BuilderErrors};
 /// you cannot call `.build()` without setting them. All other fields have
 /// sensible defaults matching [`AudioClipDef`]'s serde defaults.
 #[derive(bon::Builder)]
-#[builder(on(String, into))]
+#[builder(on(String, into), on(PathBuf, into))]
 pub struct AudioClipParams {
     /// Unique identifier for reference.
     pub id: String,
     /// Path to the audio file, relative to the project.
-    pub path: String,
+    pub path: PathBuf,
     /// Which audio track this clip occupies.
     #[builder(default = 0)]
     pub track: u32,
@@ -137,7 +139,7 @@ mod tests {
 
         // Then defaults are applied correctly.
         assert_eq!(clip.id, "bg-music");
-        assert_eq!(clip.path, "song.mp3");
+        assert_eq!(clip.path, PathBuf::from("song.mp3"));
         assert_eq!(clip.track, 0);
         assert_eq!(clip.start_time, 0.0);
         assert_eq!(clip.end_time, 30.0);
@@ -161,7 +163,7 @@ mod tests {
 
         // Then all values are reflected in the output.
         assert_eq!(clip.id, "sfx");
-        assert_eq!(clip.path, "beep.wav");
+        assert_eq!(clip.path, PathBuf::from("beep.wav"));
         assert_eq!(clip.track, 2);
         assert_eq!(clip.start_time, 5.0);
         assert_eq!(clip.end_time, 10.0);
@@ -232,7 +234,7 @@ mod tests {
 
         // Then the strings are properly owned.
         assert_eq!(clip.id, "test");
-        assert_eq!(clip.path, "song.mp3");
+        assert_eq!(clip.path, PathBuf::from("song.mp3"));
     }
 
     #[test]

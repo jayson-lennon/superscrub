@@ -41,7 +41,7 @@ fn load_project_with_audio(controller: &mut PlaybackController) {
     let mut project = test_utils::fixtures::minimal_project();
     project.audio_clips.push(ss_core::project::AudioClipDef {
         id: "audio".to_string(),
-        path: "audio.wav".to_string(),
+        path: std::path::PathBuf::from("audio.wav"),
         track: 0,
         start_time: 0.0,
         end_time: 10.0,
@@ -60,7 +60,7 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
     let mut project = test_utils::fixtures::minimal_project();
     project.audio_clips.push(ss_core::project::AudioClipDef {
         id: "audio1".to_string(),
-        path: "audio1.wav".to_string(),
+        path: std::path::PathBuf::from("audio1.wav"),
         track: 0,
         start_time: 0.0,
         end_time: 10.0,
@@ -71,7 +71,7 @@ fn load_project_with_multiple_audio(controller: &mut PlaybackController) {
     });
     project.audio_clips.push(ss_core::project::AudioClipDef {
         id: "audio2".to_string(),
-        path: "audio2.wav".to_string(),
+        path: std::path::PathBuf::from("audio2.wav"),
         track: 1,
         start_time: 5.0,
         end_time: 15.0,

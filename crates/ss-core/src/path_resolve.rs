@@ -21,9 +21,8 @@ pub struct PathResolveError;
 /// # Errors
 ///
 /// Returns an error if the project file has no parent directory.
-pub fn resolve_path(project_file: &Path, path: &str) -> Result<PathBuf, Report<PathResolveError>> {
-    debug!("resolving path: {}", path);
-    let path = Path::new(path);
+pub fn resolve_path(project_file: &Path, path: &Path) -> Result<PathBuf, Report<PathResolveError>> {
+    debug!("resolving path: {}", path.display());
 
     if path.is_absolute() {
         return Ok(path.to_path_buf());

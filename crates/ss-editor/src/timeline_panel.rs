@@ -535,7 +535,7 @@ mod tests {
             resolution: [1920, 1080],
             fps: 30,
             duration: std::time::Duration::from_secs_f64(10.0),
-            output: "out.mp4".to_string(),
+            output: std::path::PathBuf::from("out.mp4"),
             background: [0x2c, 0x2e, 0x34, 0xff],
             audio_clips,
             encoding: ss_core::project::EncodingConfig::default(),
@@ -548,7 +548,7 @@ mod tests {
         ItemDef {
             id: id.to_string(),
             content: ss_core::item::ItemContent::Image {
-                path: format!("{id}.png"),
+                path: format!("{id}.png").into(),
             },
             track,
             start_time: 0.0,
@@ -564,7 +564,7 @@ mod tests {
     fn audio_clip(id: &str, track: u32, volume: f32) -> AudioClipDef {
         AudioClipDef {
             id: id.to_string(),
-            path: format!("{id}.mp3"),
+            path: format!("{id}.mp3").into(),
             track,
             start_time: 0.0,
             end_time: 10.0,

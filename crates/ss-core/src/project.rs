@@ -6,6 +6,7 @@
 
 pub mod loader;
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::item::ItemDef;
@@ -86,7 +87,7 @@ pub struct Project {
     /// Total duration.
     pub duration: Duration,
     /// Output file path.
-    pub output: String,
+    pub output: PathBuf,
     /// Background color as [R, G, B, A], default #2c2e34 (opaque dark gray).
     pub background: [u8; 4],
     /// Audio clips in the project. Empty if no audio.
@@ -105,7 +106,7 @@ fn default_background() -> [u8; 4] {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct AudioConfig {
     /// Path to the audio file, relative to the project file.
-    pub path: String,
+    pub path: PathBuf,
     /// Start time offset in seconds.
     pub start_time: f64,
 }
@@ -120,7 +121,7 @@ pub struct AudioClipDef {
     /// Unique identifier for reference.
     pub id: String,
     /// Path to the audio file, relative to the project file.
-    pub path: String,
+    pub path: PathBuf,
     /// Which audio track this clip occupies (for timeline display).
     pub track: u32,
     /// When this clip starts playing (seconds).
@@ -155,7 +156,7 @@ struct ProjectInner {
     pub fps: u32,
     #[serde(with = "serde_duration_secs")]
     pub duration: Duration,
-    pub output: String,
+    pub output: PathBuf,
     #[serde(default = "default_background")]
     pub background: [u8; 4],
     /// Legacy single-audio field.
@@ -233,7 +234,7 @@ impl serde::Serialize for Project {
             fps: &'a u32,
             #[serde(with = "serde_duration_secs")]
             duration: &'a Duration,
-            output: &'a String,
+            output: &'a PathBuf,
             background: &'a [u8; 4],
             audio_clips: &'a [AudioClipDef],
             encoding: &'a EncodingConfig,
@@ -257,7 +258,7 @@ impl serde::Serialize for Project {
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use super::{EncodingConfig, Project};
     use crate::item::{FitMode, ItemContent, Sizing};
@@ -338,17 +339,17 @@ mod tests {
         assert_eq!(project.resolution, [1920, 1080]);
         assert_eq!(project.fps, 60);
         assert!((project.duration.as_secs_f64() - 30.0).abs() < 1e-5);
-        assert_eq!(project.output, "output.mp4");
+        assert_eq!(project.output, PathBuf::from("output.mp4"));
         assert_eq!(project.audio_clips.len(), 1);
 
         let audio_clip = &project.audio_clips[0];
-        assert_eq!(audio_clip.path, "assets/song.mp3");
+        assert_eq!(audio_clip.path, PathBuf::from("assets/song.mp3"));
         assert!((audio_clip.start_time - 0.0).abs() < 1e-5);
 
         assert_eq!(project.items.len(), 1);
         let item = &project.items[0];
         assert_eq!(item.id, "background");
-        assert!(matches!(&item.content, ItemContent::Image { path } if path == "assets/cover.png"));
+        assert!(matches!(&item.content, ItemContent::Image { path } if path == &PathBuf::from("assets/cover.png")));
         assert_eq!(item.track, 0);
         assert!((item.start_time - 0.0).abs() < 1e-5);
         assert!((item.end_time - 30.0).abs() < 1e-5);
@@ -413,7 +414,7 @@ mod tests {
         let project_file = Path::new("/some/dir/project.json");
 
         // When resolving a relative path.
-        let resolved = resolve_path(project_file, "assets/cover.png").unwrap();
+        let resolved = resolve_path(project_file, Path::new("assets/cover.png")).unwrap();
 
         // Then the path is joined to the project file's parent directory.
         assert_eq!(resolved, Path::new("/some/dir/assets/cover.png"));
@@ -425,7 +426,7 @@ mod tests {
         let project_file = Path::new("/some/dir/project.json");
 
         // When resolving an absolute path.
-        let resolved = resolve_path(project_file, "/absolute/path/image.png").unwrap();
+        let resolved = resolve_path(project_file, Path::new("/absolute/path/image.png")).unwrap();
 
         // Then the absolute path is returned unchanged.
         assert_eq!(resolved, Path::new("/absolute/path/image.png"));
@@ -437,7 +438,7 @@ mod tests {
         let project_file = Path::new("/some/dir/project.json");
 
         // When resolving an empty string.
-        let resolved = resolve_path(project_file, "").unwrap();
+        let resolved = resolve_path(project_file, Path::new("")).unwrap();
 
         // Then the result is the project file's parent directory.
         assert_eq!(resolved, Path::new("/some/dir"));
@@ -449,7 +450,7 @@ mod tests {
         let project_file = Path::new("/some/dir/project.json");
 
         // When resolving a path with ..
-        let resolved = resolve_path(project_file, "../shared/assets/img.png").unwrap();
+        let resolved = resolve_path(project_file, Path::new("../shared/assets/img.png")).unwrap();
 
         // Then the path is joined (no canonicalization, just string join).
         assert_eq!(resolved, Path::new("/some/dir/../shared/assets/img.png"));
@@ -461,7 +462,7 @@ mod tests {
         let project_file = Path::new("/some/dir/project.json");
 
         // When resolving a path with .
-        let resolved = resolve_path(project_file, "./assets/img.png").unwrap();
+        let resolved = resolve_path(project_file, Path::new("./assets/img.png")).unwrap();
 
         // Then the path is joined to the project directory.
         assert_eq!(resolved, Path::new("/some/dir/./assets/img.png"));
@@ -717,7 +718,7 @@ mod tests {
         assert_eq!(project.audio_clips.len(), 1);
         let clip = &project.audio_clips[0];
         assert_eq!(clip.id, "audio");
-        assert_eq!(clip.path, "song.mp3");
+        assert_eq!(clip.path, PathBuf::from("song.mp3"));
         assert_eq!(clip.track, 0);
         assert!((clip.start_time - 2.0).abs() < 1e-5);
         assert!((clip.end_time - 30.0).abs() < 1e-5);
@@ -743,7 +744,7 @@ mod tests {
         // Then the audio_clips data is used (not the legacy field).
         assert_eq!(project.audio_clips.len(), 1);
         assert_eq!(project.audio_clips[0].id, "new");
-        assert_eq!(project.audio_clips[0].path, "new.mp3");
+        assert_eq!(project.audio_clips[0].path, PathBuf::from("new.mp3"));
     }
 
     #[test]
@@ -842,7 +843,7 @@ mod tests {
         assert_eq!(project.audio_clips.len(), 1);
         let clip = &project.audio_clips[0];
         assert_eq!(clip.id, "background-music");
-        assert_eq!(clip.path, "assets/song.mp3");
+        assert_eq!(clip.path, PathBuf::from("assets/song.mp3"));
         assert_eq!(clip.track, 0);
         assert!((clip.start_time - 0.0).abs() < 1e-5);
         assert!((clip.end_time - 30.0).abs() < 1e-5);
@@ -1172,7 +1173,7 @@ mod tests {
 
         // Then all fields are preserved and animations defaults to empty.
         assert_eq!(clip.id, "bg");
-        assert_eq!(clip.path, "song.mp3");
+        assert_eq!(clip.path, PathBuf::from("song.mp3"));
         assert_eq!(clip.track, 0);
         assert!((clip.start_time - 0.0).abs() < 1e-5);
         assert!((clip.end_time - 30.0).abs() < 1e-5);

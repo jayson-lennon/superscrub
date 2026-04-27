@@ -31,7 +31,7 @@
 //! .unwrap();
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ss_core::{EncodingConfig, Project};
 
@@ -43,7 +43,7 @@ use ss_core::ItemDef;
 /// Required fields (`resolution`, `fps`, `duration`, `output`) are enforced
 /// at compile time. All other fields have sensible defaults.
 #[derive(bon::Builder)]
-#[builder(on(String, into))]
+#[builder(on(PathBuf, into))]
 pub struct ProjectParams {
     /// Output resolution [width, height] in pixels.
     pub resolution: [u32; 2],
@@ -52,7 +52,7 @@ pub struct ProjectParams {
     /// Total duration in seconds.
     pub duration: f64,
     /// Output file path.
-    pub output: String,
+    pub output: PathBuf,
     /// Background color as [R, G, B, A]. Default: `[0x2c, 0x2e, 0x34, 0xff]` (dark gray).
     #[builder(default = [0x2c, 0x2e, 0x34, 0xff])]
     pub background: [u8; 4],
@@ -332,7 +332,7 @@ mod tests {
         assert_eq!(project.resolution, [1920, 1080]);
         assert_eq!(project.fps, 60);
         assert!((project.duration.as_secs_f64() - 30.0).abs() < 1e-5);
-        assert_eq!(project.output, "out.mp4");
+        assert_eq!(project.output, PathBuf::from("out.mp4"));
         assert_eq!(project.background, [0x2c, 0x2e, 0x34, 0xff]);
         assert_eq!(project.encoding.crf, EncodingConfig::default().crf);
         assert_eq!(project.encoding.preset, EncodingConfig::default().preset);
@@ -419,7 +419,7 @@ mod tests {
         let project = ProjectBuilder::new(params).build().unwrap();
 
         // Then the string is properly owned.
-        assert_eq!(project.output, "out.mp4");
+        assert_eq!(project.output, PathBuf::from("out.mp4"));
     }
 
     // ============================================================
@@ -665,7 +665,7 @@ mod tests {
         assert_eq!(back.resolution, [1920, 1080]);
         assert_eq!(back.fps, 60);
         assert!((back.duration.as_secs_f64() - 30.0).abs() < 1e-5);
-        assert_eq!(back.output, "out.mp4");
+        assert_eq!(back.output, PathBuf::from("out.mp4"));
     }
 
     #[test]
@@ -924,7 +924,7 @@ mod tests {
         ss_core::ItemDef {
             id: id.to_string(),
             content: ss_core::ItemContent::Image {
-                path: "test.png".to_string(),
+                path: PathBuf::from("test.png"),
             },
             track: 0,
             start_time: start,
@@ -1064,7 +1064,7 @@ mod tests {
         let item = ss_core::ItemDef {
             id: "prebuilt".to_string(),
             content: ss_core::ItemContent::Image {
-                path: "img.png".to_string(),
+                path: PathBuf::from("img.png"),
             },
             track: 0,
             start_time: 0.0,
@@ -1092,7 +1092,7 @@ mod tests {
         let item = ss_core::ItemDef {
             id: "too-long".to_string(),
             content: ss_core::ItemContent::Image {
-                path: "img.png".to_string(),
+                path: PathBuf::from("img.png"),
             },
             track: 0,
             start_time: 0.0,

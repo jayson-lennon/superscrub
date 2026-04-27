@@ -1,5 +1,7 @@
 //! Test fixture builders.
 
+use std::path::PathBuf;
+
 use crate::animation::{AnimatableProperty, AnimationTrack, Easing, Keyframe};
 use crate::item::{ItemContent, ItemDef, Sizing};
 use crate::project::{AudioClipDef, Project};
@@ -9,7 +11,7 @@ pub fn build_image_item(id: &str, path: &str, start_time: f64, end_time: f64) ->
     ItemDef {
         id: id.to_string(),
         content: ItemContent::Image {
-            path: path.to_string(),
+            path: PathBuf::from(path),
         },
         track: 0,
         start_time,
@@ -74,7 +76,7 @@ pub fn build_group_item(
 pub fn build_audio_clip(id: &str, path: &str, start_time: f64, end_time: f64) -> AudioClipDef {
     AudioClipDef {
         id: id.to_string(),
-        path: path.to_string(),
+        path: PathBuf::from(path),
         track: 0,
         start_time,
         end_time,
@@ -91,7 +93,7 @@ pub fn build_project(items: Vec<ItemDef>) -> Project {
         resolution: [1920, 1080],
         fps: 60,
         duration: std::time::Duration::from_secs_f64(30.0),
-        output: "output.mp4".to_string(),
+        output: PathBuf::from("output.mp4"),
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio_clips: vec![build_audio_clip("audio", "assets/song.mp3", 0.0, 30.0)],
         encoding: crate::project::EncodingConfig::default(),

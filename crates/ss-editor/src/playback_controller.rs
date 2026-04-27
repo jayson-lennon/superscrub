@@ -187,7 +187,7 @@ impl PlaybackController {
             .map(|clip| {
                 let path = ss_core::path_resolve::resolve_path(project_file, &clip.path)
                     .change_context(AudioError)
-                    .attach(format!("audio path: {}", clip.path))?;
+                    .attach(format!("audio path: {}", clip.path.display()))?;
                 Ok::<_, error_stack::Report<AudioError>>(AudioClipInfo {
                     path,
                     start_time: clip.start_time,

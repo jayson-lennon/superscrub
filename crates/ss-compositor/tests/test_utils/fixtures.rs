@@ -14,7 +14,7 @@ pub fn build_project(items: Vec<ss_core::item::ItemDef>) -> Project {
         resolution: [100, 100],
         fps: 30,
         duration: std::time::Duration::from_secs_f64(10.0),
-        output: "output.mp4".to_string(),
+        output: std::path::PathBuf::from("output.mp4"),
         background: [0x2c, 0x2e, 0x34, 0xff],
         audio_clips: vec![],
         encoding: EncodingConfig::default(),

@@ -4,6 +4,8 @@
 //! end time, track, z-order, sizing, and optional animations. Items can be either
 //! images or groups of nested items.
 
+use std::path::PathBuf;
+
 use crate::animation::AnimationTrack;
 
 /// Definition of a single item on the timeline.
@@ -48,7 +50,7 @@ pub enum ItemContent {
     #[serde(rename = "image")]
     Image {
         /// Path to the image, relative to the project file.
-        path: String,
+        path: PathBuf,
     },
     /// A group of nested items. Groups enable non-destructive effects
     /// (e.g., opacity) applied to all children, with transforms composing
@@ -154,7 +156,7 @@ mod tests {
         ItemDef {
             id: id.to_string(),
             content: ItemContent::Image {
-                path: "test.png".to_string(),
+                path: PathBuf::from("test.png"),
             },
             track: 0,
             start_time: start,
@@ -268,7 +270,7 @@ mod tests {
         let item = ItemDef {
             id: "preserve".to_string(),
             content: ItemContent::Image {
-                path: "img.png".to_string(),
+                path: PathBuf::from("img.png"),
             },
             track: 3,
             start_time: 1.0,

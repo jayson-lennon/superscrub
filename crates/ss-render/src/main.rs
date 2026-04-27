@@ -69,7 +69,7 @@ fn run() -> Result<(), Report<RenderError>> {
     let output_path = cli
         .output
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(&project.output));
+        .unwrap_or_else(|| project.output.clone());
 
     // Create renderer service.
     let image_provider = Arc::new(FilesystemImageProvider::new());
