@@ -24,4 +24,5 @@ pub use audio_clip_builder::{AudioClipBuilder, AudioClipParams};
 pub use clip_builder::{ClipBuilder, ClipParams};
 pub use group_builder::{GroupBuilder, GroupParams};
 pub use project_builder::{ProjectBuilder, ProjectParams};
+pub use ss_core;
 pub use validation::{BuilderError, BuilderErrors};

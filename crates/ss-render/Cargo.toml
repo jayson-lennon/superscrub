@@ -8,7 +8,7 @@ name = "ss_render"
 path = "src/lib.rs"
 
 [[bin]]
-name = "ss-render"
+name = "superscrub-render"
 path = "src/main.rs"
 
 [dependencies]

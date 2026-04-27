@@ -17,7 +17,7 @@ use ss_render::{
 /// Headless renderer for SuperScrub projects.
 #[derive(Parser)]
 #[command(
-    name = "ss-render",
+    name = "superscrub-render",
     version,
     about = "Render a SuperScrub project to MP4"
 )]

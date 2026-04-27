@@ -8,7 +8,7 @@ name = "ss_editor"
 path = "src/lib.rs"
 
 [[bin]]
-name = "ss-editor"
+name = "superscrub-editor"
 path = "src/main.rs"
 
 [dependencies]
