@@ -1,0 +1,12 @@
+[package]
+name = "ss"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ss-effects = { path = "../ss-effects" }
+ss-project-builder = { path = "../ss-project-builder" }
+ss-core = { path = "../ss-core" }
+
+[lints]
+workspace = true
