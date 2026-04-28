@@ -20,6 +20,7 @@
 
 pub mod app;
 pub mod app_config;
+pub mod config_watcher_notify;
 pub mod editor_state;
 pub mod playback_controller;
 pub mod project_watcher;

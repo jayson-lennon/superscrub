@@ -17,28 +17,6 @@ struct Args {
     project: PathBuf,
 }
 
-/// A no-op config watcher. The editor creates a real `ProjectWatcher`
-/// which polls this via `ConfigWatcher::has_changed()`. A `notify`-based
-/// implementation can replace this when file system events are needed.
-struct StubConfigWatcher;
-
-impl ss_core::ConfigWatcher for StubConfigWatcher {
-    fn name(&self) -> &'static str {
-        "stub"
-    }
-
-    fn watch(
-        &self,
-        _path: &std::path::Path,
-    ) -> Result<(), error_stack::Report<ss_core::ConfigWatchError>> {
-        Ok(())
-    }
-
-    fn has_changed(&self) -> bool {
-        false
-    }
-}
-
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt().init();
     let args = Args::parse();
@@ -54,7 +32,7 @@ fn main() -> eframe::Result<()> {
     let renderer = Arc::new(CompositorRenderer::new(image_provider));
     let preview = PreviewCacheService::new(Arc::new(BackgroundPreviewCache::new(renderer.clone())));
     let renderer_service = FrameRendererService::new(renderer);
-    let watcher = Arc::new(StubConfigWatcher);
+    let watcher = Arc::new(ss_editor::config_watcher_notify::NotifyConfigWatcher::new());
 
     let services = Services {
         audio,

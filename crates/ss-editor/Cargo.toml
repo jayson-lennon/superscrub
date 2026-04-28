@@ -28,6 +28,7 @@ dirs = { workspace = true }
 eframe = { workspace = true }
 egui = { workspace = true }
 clap = { workspace = true }
+notify = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
