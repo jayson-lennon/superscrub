@@ -108,17 +108,32 @@ impl EditorApp {
 impl eframe::App for EditorApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // 1. Poll for project file changes.
-        if self.watcher.poll()
+        let changed = self.watcher.poll();
+        if changed {
+            tracing::info!("project file change detected, attempting reload");
+        }
+        if changed
             && let Some(path) = self.controller.state().project_file().cloned()
-            && let Ok(content) = std::fs::read_to_string(&path)
-            && let Ok(project) = serde_json::from_str::<ss_core::project::Project>(&content)
         {
-            self.controller.state_mut().reload_project(project);
-            let preview_res = self
-                .config
-                .preview_resolution(self.controller.state().resolution());
-            let _ = self.controller.start_render(preview_res);
-            let _ = self.controller.load_project_audio();
+            match std::fs::read_to_string(&path) {
+                Ok(content) => match serde_json::from_str::<ss_core::project::Project>(&content) {
+                    Ok(project) => {
+                        tracing::info!(path = %path.display(), "reloading project");
+                        self.controller.state_mut().reload_project(project);
+                        let preview_res = self
+                            .config
+                            .preview_resolution(self.controller.state().resolution());
+                        let _ = self.controller.start_render(preview_res);
+                        let _ = self.controller.load_project_audio();
+                    }
+                    Err(e) => {
+                        tracing::warn!(path = %path.display(), error = %e, "failed to parse project JSON, skipping reload");
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "failed to read project file, skipping reload");
+                }
+            }
         }
 
         // 2. Advance playback if playing.

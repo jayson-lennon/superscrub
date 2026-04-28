@@ -56,18 +56,25 @@ impl ConfigWatcher for NotifyConfigWatcher {
         *self.watched_path.lock().unwrap() = Some(path.to_path_buf());
 
         let changed = self.changed.clone();
-        let watched = path.to_path_buf();
+        let _watched = path.to_path_buf();
+
+        tracing::info!(path = %path.display(), "starting file watcher");
 
         let mut watcher = RecommendedWatcher::new(
             move |res: Result<Event, notify::Error>| {
                 match res {
                     Ok(event) => {
+                        tracing::debug!(
+                            kind = ?event.kind,
+                            paths = ?event.paths,
+                            "notify event"
+                        );
                         if matches!(
                             event.kind,
                             EventKind::Modify(_) | EventKind::Create(_)
                         ) {
-                            let _ = &watched; // available for future path filtering
                             changed.store(true, Ordering::Release);
+                            tracing::info!("file change flag set");
                         }
                     }
                     Err(e) => {
@@ -79,11 +86,11 @@ impl ConfigWatcher for NotifyConfigWatcher {
         )
         .map_err(|e| Report::new(ConfigWatchError).attach(e))?;
 
+        let watch_dir = path.parent().unwrap_or(path);
+        tracing::info!(dir = %watch_dir.display(), "watching directory");
+
         watcher
-            .watch(
-                path.parent().unwrap_or(path),
-                RecursiveMode::NonRecursive,
-            )
+            .watch(watch_dir, RecursiveMode::NonRecursive)
             .map_err(|e| Report::new(ConfigWatchError).attach(e))?;
 
         *self._watcher.lock().unwrap() = Some(watcher);
@@ -91,6 +98,10 @@ impl ConfigWatcher for NotifyConfigWatcher {
     }
 
     fn has_changed(&self) -> bool {
-        self.changed.swap(false, Ordering::AcqRel)
+        let changed = self.changed.swap(false, Ordering::AcqRel);
+        if changed {
+            tracing::info!("has_changed() returning true, flag cleared");
+        }
+        changed
     }
 }
