@@ -16,7 +16,7 @@
 pub mod decoder;
 pub mod engine;
 
-pub use decoder::{DecodeError, DecodedAudio, InterleavedSamples, PlanarSamples};
+pub use decoder::{DecodeError, DecodedAudio, InterleavedSamples, PlanarSamples, ProbeError, probe_audio_duration};
 pub use engine::cpal::{CpalAudioEngine, CpalInitError};
 pub use engine::fake::FakeAudioEngine;
 pub use engine::service::AudioEngineService;

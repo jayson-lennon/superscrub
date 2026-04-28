@@ -23,6 +23,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
+use symphonia::core::units::Time;
 
 // ---------------------------------------------------------------------------
 // Sample newtypes
@@ -98,6 +99,11 @@ impl From<PlanarSamples> for InterleavedSamples {
 #[error("audio decode failed")]
 pub struct DecodeError;
 
+/// Failed to probe audio file duration.
+#[derive(Debug, wherror::Error)]
+#[error("audio duration probe failed")]
+pub struct ProbeError;
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -136,6 +142,115 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, Report<DecodeError>> {
         sample_rate,
         duration,
     })
+}
+
+/// Probe the duration of an audio file without fully decoding its content.
+///
+/// Reads container metadata (e.g., WAV data chunk size, FLAC STREAMINFO
+/// `total_samples`) to determine duration. This is fast — only the file
+/// header is read.
+///
+/// For formats where container metadata does not include total sample count
+/// (e.g., some VBR MP3 files without LAME/VBRI headers), falls back to
+/// decoding all packets to count frames.
+///
+/// # Supported formats
+///
+/// WAV, FLAC, MP3, OGG/Vorbis, AAC, and any format supported by symphonia
+/// where `n_frames` is available in the container header.
+///
+/// # Errors
+///
+/// Returns [`ProbeError`] if the file cannot be opened, the format is
+/// unrecognized, or no audio track is found.
+pub fn probe_audio_duration(path: &Path) -> Result<std::time::Duration, Report<ProbeError>> {
+    // 1. Open file and wrap in MediaSourceStream.
+    let file = std::fs::File::open(path)
+        .change_context(ProbeError)
+        .attach(format!("path: {}", path.display()))?;
+    let mss = MediaSourceStream::new(
+        Box::new(file),
+        symphonia::core::io::MediaSourceStreamOptions::default(),
+    );
+
+    // 2. Create a Hint with the file extension for format probing.
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+
+    // 3. Probe the format to get a FormatReader.
+    let format_opts = FormatOptions {
+        enable_gapless: true,
+        ..Default::default()
+    };
+    let metadata_opts = MetadataOptions::default();
+
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &format_opts, &metadata_opts)
+        .change_context(ProbeError)
+        .attach("format probing failed")?;
+
+    let mut format_reader = probed.format;
+
+    // 4. Find the first audio track.
+    let track = format_reader
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        .ok_or_else(|| Report::new(ProbeError).attach("no supported audio track found"))?;
+
+    let codec_params = &track.codec_params;
+
+    // 5. Fast path: use container metadata.
+    if let (Some(n_frames), Some(time_base)) = (codec_params.n_frames, codec_params.time_base) {
+        let time: Time = time_base.calc_time(n_frames);
+        return Ok(std::time::Duration::from(time));
+    }
+
+    // 6. Fallback path: decode all packets, counting frames.
+    let sample_rate = codec_params
+        .sample_rate
+        .ok_or_else(|| Report::new(ProbeError).attach("unknown sample rate"))?;
+
+    let track_id = track.id;
+    let decoder_opts = DecoderOptions::default();
+    let mut decoder = symphonia::default::get_codecs()
+        .make(codec_params, &decoder_opts)
+        .change_context(ProbeError)
+        .attach("decoder creation failed")?;
+
+    let mut total_frames: u64 = 0;
+
+    loop {
+        let packet = match format_reader.next_packet() {
+            Ok(p) => p,
+            Err(symphonia::core::errors::Error::IoError(ref e))
+                if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(e) => {
+                return Err(Report::new(ProbeError)
+                    .attach(format!("decode error: {e}"))
+                    .attach("packet decoding failed"));
+            }
+        };
+
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        let decoded = decoder
+            .decode(&packet)
+            .change_context(ProbeError)
+            .attach("frame decoding failed")?;
+
+        total_frames += decoded.frames() as u64;
+    }
+
+    let duration = std::time::Duration::from_secs_f64(total_frames as f64 / sample_rate as f64);
+    Ok(duration)
 }
 
 /// Decode an audio file and resample to a target sample rate.
@@ -682,5 +797,62 @@ mod tests {
         // Then the data is unchanged.
         assert_eq!(result.samples.0, original.samples.0);
         assert_eq!(result.channels, 2);
+    }
+
+    // ================================================================
+    // probe_audio_duration tests
+    // ================================================================
+
+    #[test]
+    fn probe_wav_duration_matches_decode_duration() {
+        // Given a generated WAV file.
+        let dir = tempfile::tempdir().unwrap();
+        let wav_path = generate_test_wav(dir.path());
+
+        // When probing the duration and decoding the file.
+        let probed = probe_audio_duration(&wav_path).unwrap();
+        let decoded = decode_file(&wav_path).unwrap();
+
+        // Then the probed duration matches the decoded duration exactly.
+        assert_eq!(probed, decoded.duration);
+    }
+
+    #[test]
+    fn probe_nonexistent_file_returns_error() {
+        // Given a path to a file that does not exist.
+        let path = std::path::Path::new("/nonexistent/audio.wav");
+
+        // When probing the duration.
+        let result = probe_audio_duration(path);
+
+        // Then an error is returned.
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn probe_non_audio_file_returns_error() {
+        // Given a file that is not audio.
+        let dir = tempfile::tempdir().unwrap();
+        let txt_path = dir.path().join("not_audio.txt");
+        std::fs::write(&txt_path, b"this is not audio").unwrap();
+
+        // When probing the duration.
+        let result = probe_audio_duration(&txt_path);
+
+        // Then an error is returned.
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn probe_wav_duration_is_approximately_one_second() {
+        // Given a 1-second WAV file.
+        let dir = tempfile::tempdir().unwrap();
+        let wav_path = generate_test_wav(dir.path());
+
+        // When probing the duration.
+        let duration = probe_audio_duration(&wav_path).unwrap();
+
+        // Then the duration is approximately 1 second.
+        assert!((duration.as_secs_f64() - 1.0).abs() < 0.01);
     }
 }

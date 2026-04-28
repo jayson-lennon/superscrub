@@ -25,6 +25,9 @@ pub use ss_project_builder;
 // Re-export core types so consumers don't need a separate ss-core dep.
 pub use ss_core;
 
+// Re-export audio duration probing.
+pub use ss_audio::decoder::probe_audio_duration;
+
 // Expose effects as a module: `use ss::effects::KenBurnsBuilder`.
 pub mod effects {
     pub use ss_effects::*;
